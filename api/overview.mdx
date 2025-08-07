@@ -1,0 +1,634 @@
+---
+title: "API Overview"
+description: "Complete guide to the DeepWiki-Open REST API for programmatic wiki generation and repository analysis"
+---
+
+The DeepWiki-Open API provides programmatic access to all wiki generation and repository analysis features. Built with FastAPI, it offers high-performance endpoints for integration into your development workflows.
+
+## API Base URL
+
+<ParamField type="string">
+  Base URL: `http://localhost:8001` (development)
+</ParamField>
+
+For production deployments, replace with your actual API server URL.
+
+## API Architecture
+
+The DeepWiki API is organized into several key areas:
+
+<CardGroup cols={2}>
+<Card title="Wiki Generation" icon="book" href="/api/wiki-endpoints">
+  Generate comprehensive documentation wikis from repository URLs
+</Card>
+
+<Card title="Chat & RAG" icon="comments" href="/api/chat-endpoints">
+  Interactive Q&A with repository content using RAG
+</Card>
+
+<Card title="Model Management" icon="brain" href="/api/model-endpoints">
+  Configure and manage AI model providers
+</Card>
+
+<Card title="WebSocket API" icon="broadcast-tower" href="/api/websocket-api">
+  Real-time streaming for generation progress and chat
+</Card>
+</CardGroup>
+
+## Quick Start
+
+### Authentication
+
+Most endpoints require authentication via environment-configured API keys. The API validates your configured providers automatically.
+
+<CodeGroup>
+```bash Test API Health
+curl -X GET "http://localhost:8001/health"
+```
+
+```json Response
+{
+  "status": "healthy",
+  "version": "0.1.0",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+</CodeGroup>
+
+### Basic Wiki Generation
+
+<RequestExample>
+```bash cURL
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/microsoft/TypeScript-Node-Starter",
+    "model_provider": "google",
+    "model_name": "gemini-2.0-flash",
+    "force_regenerate": false
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post("http://localhost:8001/wiki/generate", json={
+    "repo_url": "https://github.com/microsoft/TypeScript-Node-Starter", 
+    "model_provider": "google",
+    "model_name": "gemini-2.0-flash",
+    "force_regenerate": False
+})
+
+wiki_data = response.json()
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8001/wiki/generate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    repo_url: 'https://github.com/microsoft/TypeScript-Node-Starter',
+    model_provider: 'google', 
+    model_name: 'gemini-2.0-flash',
+    force_regenerate: false
+  })
+});
+
+const wikiData = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json Success Response
+{
+  "success": true,
+  "wiki_id": "wiki_1234567890",
+  "repo_info": {
+    "url": "https://github.com/microsoft/TypeScript-Node-Starter",
+    "name": "TypeScript-Node-Starter",
+    "owner": "microsoft",
+    "platform": "github"
+  },
+  "generation_status": "completed",
+  "wiki_pages": [
+    {
+      "id": "overview",
+      "title": "Project Overview", 
+      "content": "TypeScript Node Starter is...",
+      "importance": "high",
+      "filePaths": ["README.md", "package.json"],
+      "relatedPages": ["setup", "architecture"]
+    }
+  ],
+  "metadata": {
+    "generated_at": "2024-01-15T10:30:00Z",
+    "model_used": "gemini-2.0-flash",
+    "processing_time": 45.2,
+    "total_files_analyzed": 127
+  }
+}
+```
+</ResponseExample>
+
+## Core Endpoints
+
+### Wiki Generation
+
+<Accordion title="POST /wiki/generate">
+Generate a comprehensive wiki from a repository URL.
+
+**Request Body:**
+- `repo_url` (string, required): Repository URL
+- `model_provider` (string): AI provider (`google`, `openai`, `openrouter`, `azure`, `ollama`)
+- `model_name` (string): Specific model to use
+- `force_regenerate` (boolean): Force regeneration even if cached
+- `access_token` (string): Repository access token for private repos
+- `auth_code` (string): Authorization code (if auth mode enabled)
+
+**Response:** Complete wiki structure with pages and metadata
+</Accordion>
+
+<Accordion title="GET /wiki/projects">
+List all processed repositories and their wiki status.
+
+**Query Parameters:**
+- `limit` (integer): Number of results to return
+- `offset` (integer): Pagination offset
+
+**Response:** Array of processed projects with generation status
+</Accordion>
+
+<Accordion title="GET /wiki/{project_id}">
+Retrieve a specific generated wiki by project ID.
+
+**Path Parameters:**
+- `project_id` (string): Unique project identifier
+
+**Response:** Complete wiki data including all pages
+</Accordion>
+
+### Chat & RAG
+
+<Accordion title="POST /chat/stream">
+Stream chat responses using RAG on repository content.
+
+**Request Body:**
+- `message` (string, required): User question
+- `repo_url` (string, required): Repository URL for context
+- `conversation_history` (array): Previous conversation messages
+- `model_provider` (string): AI provider for responses
+- `deep_research` (boolean): Enable multi-turn research mode
+
+**Response:** Server-sent events with streaming chat responses
+</Accordion>
+
+### Model Configuration  
+
+<Accordion title="GET /models/config">
+Get available model providers and configurations.
+
+**Response:** Available providers, models, and their parameters
+</Accordion>
+
+<Accordion title="POST /models/validate">
+Validate API keys and model availability.
+
+**Request Body:**
+- `provider` (string): Provider to validate
+- `model_name` (string): Specific model to test
+
+**Response:** Validation status and model information
+</Accordion>
+
+## Data Models
+
+### WikiPage
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the wiki page
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Human-readable page title
+</ResponseField>
+
+<ResponseField name="content" type="string" required>
+  Full page content in Markdown format with Mermaid diagrams
+</ResponseField>
+
+<ResponseField name="filePaths" type="array" required>
+  Source file paths that contributed to this page
+</ResponseField>
+
+<ResponseField name="importance" type="string" required>
+  Page importance level: `high`, `medium`, or `low`
+</ResponseField>
+
+<ResponseField name="relatedPages" type="array">
+  Array of related page IDs for cross-references
+</ResponseField>
+
+### RepoInfo
+
+<ResponseField name="url" type="string" required>
+  Full repository URL
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Repository name
+</ResponseField>
+
+<ResponseField name="owner" type="string" required>
+  Repository owner/organization
+</ResponseField>
+
+<ResponseField name="platform" type="string" required>
+  Git platform: `github`, `gitlab`, or `bitbucket`
+</ResponseField>
+
+<ResponseField name="private" type="boolean">
+  Whether the repository is private
+</ResponseField>
+
+<ResponseField name="default_branch" type="string">
+  Default branch name (usually `main` or `master`)
+</ResponseField>
+
+## Error Handling
+
+The API uses standard HTTP status codes and returns detailed error information:
+
+<ResponseExample>
+```json Error Response
+{
+  "error": {
+    "code": "INVALID_REPOSITORY",
+    "message": "Repository not found or not accessible",
+    "details": {
+      "repo_url": "https://github.com/invalid/repo",
+      "status_code": 404,
+      "suggestion": "Verify the repository URL and access permissions"
+    },
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+</ResponseExample>
+
+### Common Error Codes
+
+<AccordionGroup>
+<Accordion title="400 Bad Request">
+**Common causes:**
+- Invalid repository URL format
+- Missing required parameters
+- Invalid model provider/name combination
+
+**Example:**
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid repository URL format",
+    "details": {
+      "field": "repo_url",
+      "provided": "not-a-valid-url",
+      "expected": "https://github.com/owner/repo"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="401 Unauthorized">
+**Common causes:**
+- Missing or invalid API keys
+- Repository access token required but not provided
+- Invalid authorization code
+
+**Example:**
+```json
+{
+  "error": {
+    "code": "API_KEY_INVALID", 
+    "message": "Google API key is invalid or expired",
+    "details": {
+      "provider": "google",
+      "suggestion": "Check your GOOGLE_API_KEY environment variable"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="404 Not Found">
+**Common causes:**
+- Repository doesn't exist
+- Repository is private and requires access token
+- Wiki not found for the given project ID
+
+**Example:**
+```json
+{
+  "error": {
+    "code": "REPOSITORY_NOT_FOUND",
+    "message": "Repository not accessible",
+    "details": {
+      "repo_url": "https://github.com/private/repo",
+      "suggestion": "Provide access_token for private repositories"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="429 Too Many Requests">
+**Common causes:**
+- API rate limits exceeded
+- AI provider rate limits reached
+
+**Example:**
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "OpenAI API rate limit exceeded",
+    "details": {
+      "provider": "openai", 
+      "retry_after": 60,
+      "suggestion": "Wait 60 seconds before retrying or use a different provider"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="500 Internal Server Error">
+**Common causes:**
+- AI model generation failures
+- Repository processing errors
+- Configuration issues
+
+**Example:**
+```json
+{
+  "error": {
+    "code": "GENERATION_FAILED",
+    "message": "Wiki generation failed due to model error",
+    "details": {
+      "model": "gpt-4o",
+      "stage": "content_generation",
+      "suggestion": "Try a different model or contact support"
+    }
+  }
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Rate Limits
+
+<Info>
+Rate limits depend on your AI provider's limits. DeepWiki doesn't impose additional rate limits.
+</Info>
+
+### Provider Rate Limits
+
+<Tabs>
+<Tab title="OpenAI">
+- **GPT-4**: 500 requests/minute, 30,000 tokens/minute
+- **GPT-3.5**: 3,500 requests/minute, 90,000 tokens/minute
+- Varies by usage tier and model
+</Tab>
+
+<Tab title="Google Gemini">
+- **Free tier**: 15 requests/minute, 32,000 tokens/minute
+- **Paid tier**: 360 requests/minute, 120,000 tokens/minute
+</Tab>
+
+<Tab title="OpenRouter">
+- Varies by model and payment plan
+- Some models have per-request costs
+- Check [OpenRouter pricing](https://openrouter.ai/docs#limits)
+</Tab>
+
+<Tab title="Azure OpenAI">
+- Configurable limits per deployment
+- Enterprise-grade quotas available
+- Contact Microsoft for high-volume needs
+</Tab>
+</Tabs>
+
+## WebSocket API
+
+For real-time updates during wiki generation and chat:
+
+<CodeGroup>
+```javascript WebSocket Connection
+const ws = new WebSocket('ws://localhost:8001/ws/wiki/generate');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    repo_url: 'https://github.com/microsoft/vscode',
+    model_provider: 'google',
+    model_name: 'gemini-2.0-flash'
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  switch(data.type) {
+    case 'progress':
+      console.log(`Progress: ${data.progress}%`);
+      break;
+    case 'page_generated':
+      console.log(`Generated page: ${data.page.title}`);
+      break;
+    case 'completed':
+      console.log('Wiki generation completed!');
+      break;
+    case 'error':
+      console.error('Error:', data.error);
+      break;
+  }
+};
+```
+</CodeGroup>
+
+## SDK Examples
+
+### Python SDK Usage
+
+```python
+import asyncio
+import aiohttp
+import json
+
+class DeepWikiClient:
+    def __init__(self, base_url="http://localhost:8001"):
+        self.base_url = base_url
+    
+    async def generate_wiki(self, repo_url, model_provider="google", 
+                          model_name="gemini-2.0-flash"):
+        async with aiohttp.ClientSession() as session:
+            payload = {
+                "repo_url": repo_url,
+                "model_provider": model_provider,
+                "model_name": model_name
+            }
+            
+            async with session.post(
+                f"{self.base_url}/wiki/generate",
+                json=payload
+            ) as response:
+                return await response.json()
+    
+    async def ask_question(self, question, repo_url):
+        async with aiohttp.ClientSession() as session:
+            payload = {
+                "message": question,
+                "repo_url": repo_url
+            }
+            
+            async with session.post(
+                f"{self.base_url}/chat/stream",
+                json=payload
+            ) as response:
+                async for line in response.content:
+                    yield json.loads(line.decode())
+
+# Usage
+async def main():
+    client = DeepWikiClient()
+    
+    # Generate wiki
+    wiki = await client.generate_wiki(
+        "https://github.com/fastapi/fastapi"
+    )
+    print(f"Generated {len(wiki['wiki_pages'])} pages")
+    
+    # Ask questions
+    async for response in client.ask_question(
+        "How does FastAPI handle dependency injection?",
+        "https://github.com/fastapi/fastapi"
+    ):
+        print(response['content'], end='', flush=True)
+
+asyncio.run(main())
+```
+
+### Node.js SDK Usage
+
+```javascript
+class DeepWikiClient {
+  constructor(baseUrl = 'http://localhost:8001') {
+    this.baseUrl = baseUrl;
+  }
+
+  async generateWiki(repoUrl, options = {}) {
+    const {
+      modelProvider = 'google',
+      modelName = 'gemini-2.0-flash',
+      forceRegenerate = false
+    } = options;
+
+    const response = await fetch(`${this.baseUrl}/wiki/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        model_provider: modelProvider,
+        model_name: modelName,
+        force_regenerate: forceRegenerate
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  async *askQuestion(question, repoUrl) {
+    const response = await fetch(`${this.baseUrl}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: question,
+        repo_url: repoUrl
+      })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            yield JSON.parse(line.slice(6));
+          } catch (e) {
+            console.warn('Failed to parse SSE data:', line);
+          }
+        }
+      }
+    }
+  }
+}
+
+// Usage
+const client = new DeepWikiClient();
+
+async function example() {
+  try {
+    // Generate wiki
+    const wiki = await client.generateWiki(
+      'https://github.com/expressjs/express'
+    );
+    console.log(`Generated ${wiki.wiki_pages.length} pages`);
+
+    // Ask question with streaming response
+    console.log('\nAsking question...');
+    for await (const chunk of client.askQuestion(
+      'Explain Express.js middleware system',
+      'https://github.com/expressjs/express'
+    )) {
+      if (chunk.type === 'content') {
+        process.stdout.write(chunk.content);
+      }
+    }
+  } catch (error) {
+    console.error('Error:', error.message);
+  }
+}
+
+example();
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Wiki Endpoints" icon="book" href="/api/wiki-endpoints">
+  Detailed wiki generation and management endpoints
+</Card>
+
+<Card title="Chat API" icon="comments" href="/api/chat-endpoints">  
+  Interactive chat and RAG endpoints for repository Q&A
+</Card>
+
+<Card title="WebSocket API" icon="broadcast-tower" href="/api/websocket-api">
+  Real-time streaming APIs for live updates
+</Card>
+
+<Card title="Authentication" icon="key" href="/api/authentication">
+  API authentication and security configuration
+</Card>
+</CardGroup>

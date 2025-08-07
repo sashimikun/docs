@@ -1,0 +1,586 @@
+---
+title: "Installation Guide"
+description: "Detailed installation instructions for DeepWiki-Open including dependencies, system requirements, and setup options"
+---
+
+This guide covers detailed installation instructions for DeepWiki-Open, including system requirements, dependencies, and various setup options.
+
+## System Requirements
+
+<Tabs>
+<Tab title="Minimum Requirements">
+- **OS**: Linux, macOS, or Windows 10+
+- **Python**: 3.8 or higher
+- **Node.js**: 16.0 or higher
+- **Memory**: 4GB RAM minimum
+- **Storage**: 2GB free space
+- **Network**: Internet connection for AI API calls
+</Tab>
+
+<Tab title="Recommended Requirements">
+- **OS**: Linux (Ubuntu 20.04+) or macOS
+- **Python**: 3.9 or 3.10
+- **Node.js**: 18.0 or higher
+- **Memory**: 8GB RAM or more
+- **Storage**: 10GB free space (for repository caches)
+- **Network**: Stable broadband connection
+</Tab>
+</Tabs>
+
+## Prerequisites
+
+Before installing DeepWiki-Open, ensure you have:
+
+<Steps>
+<Step title="Python Installation">
+<Tabs>
+<Tab title="macOS">
+```bash
+# Using Homebrew
+brew install python@3.10
+
+# Or download from python.org
+# https://www.python.org/downloads/
+```
+</Tab>
+
+<Tab title="Linux (Ubuntu/Debian)">
+```bash
+sudo apt update
+sudo apt install python3.10 python3.10-venv python3-pip
+```
+</Tab>
+
+<Tab title="Windows">
+```powershell
+# Using Chocolatey
+choco install python3
+
+# Or download from python.org
+# https://www.python.org/downloads/
+```
+</Tab>
+</Tabs>
+
+<Check>
+Verify Python installation: `python --version` should show 3.8+
+</Check>
+</Step>
+
+<Step title="Node.js Installation">
+<Tabs>
+<Tab title="macOS">
+```bash
+# Using Homebrew
+brew install node
+
+# Or using Node Version Manager
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 18
+nvm use 18
+```
+</Tab>
+
+<Tab title="Linux">
+```bash
+# Using NodeSource repository
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Or using NVM
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 18
+nvm use 18
+```
+</Tab>
+
+<Tab title="Windows">
+```powershell
+# Using Chocolatey
+choco install nodejs
+
+# Or download from nodejs.org
+# https://nodejs.org/
+```
+</Tab>
+</Tabs>
+
+<Check>
+Verify Node.js installation: `node --version` should show 16.0+
+</Check>
+</Step>
+
+<Step title="Git Installation">
+<Tabs>
+<Tab title="macOS">
+```bash
+# Git comes with Xcode Command Line Tools
+xcode-select --install
+
+# Or using Homebrew
+brew install git
+```
+</Tab>
+
+<Tab title="Linux">
+```bash
+sudo apt update
+sudo apt install git
+```
+</Tab>
+
+<Tab title="Windows">
+```powershell
+# Using Chocolatey
+choco install git
+
+# Or download from git-scm.com
+# https://git-scm.com/download/win
+```
+</Tab>
+</Tabs>
+
+<Check>
+Verify Git installation: `git --version`
+</Check>
+</Step>
+</Steps>
+
+## Installation Methods
+
+Choose the installation method that best fits your needs:
+
+<Tabs>
+<Tab title="Docker (Recommended)">
+### Docker Installation
+
+Docker provides the easiest and most consistent setup experience.
+
+#### Prerequisites for Docker
+
+<Steps>
+<Step title="Install Docker">
+<Tabs>
+<Tab title="macOS">
+Download and install [Docker Desktop for Mac](https://docs.docker.com/desktop/mac/install/)
+</Tab>
+
+<Tab title="Linux">
+```bash
+# Ubuntu/Debian
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in for group change to take effect
+```
+</Tab>
+
+<Tab title="Windows">
+Download and install [Docker Desktop for Windows](https://docs.docker.com/desktop/windows/install/)
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Install Docker Compose">
+Docker Compose is typically included with Docker Desktop. For Linux:
+
+```bash
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+</Step>
+</Steps>
+
+#### Docker Setup
+
+<Steps>
+<Step title="Clone Repository">
+```bash
+git clone https://github.com/AsyncFuncAI/deepwiki-open.git
+cd deepwiki-open
+```
+</Step>
+
+<Step title="Configure Environment">
+```bash
+# Create .env file
+cp .env.example .env
+
+# Edit with your API keys
+nano .env  # or use your preferred editor
+```
+</Step>
+
+<Step title="Start Services">
+```bash
+docker-compose up -d
+```
+
+<Info>
+This starts both backend (port 8001) and frontend (port 3000) services.
+</Info>
+</Step>
+</Steps>
+
+</Tab>
+
+<Tab title="Manual Installation">
+### Manual Installation
+
+For development or when you need more control over the setup.
+
+<Steps>
+<Step title="Clone Repository">
+```bash
+git clone https://github.com/AsyncFuncAI/deepwiki-open.git
+cd deepwiki-open
+```
+</Step>
+
+<Step title="Backend Setup">
+```bash
+# Create Python virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+
+# Install Python dependencies
+pip install -r api/requirements.txt
+```
+
+<Warning>
+Using a virtual environment is strongly recommended to avoid dependency conflicts.
+</Warning>
+</Step>
+
+<Step title="Frontend Setup">
+```bash
+# Install Node.js dependencies
+npm install
+# or if you prefer yarn:
+# yarn install
+```
+</Step>
+
+<Step title="Environment Configuration">
+Create a `.env` file in the project root:
+
+```bash
+# Copy example environment file
+cp .env.example .env
+
+# Edit environment variables
+nano .env
+```
+
+Required variables:
+```env
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+</Step>
+
+<Step title="Start Services">
+Open two terminal windows:
+
+Terminal 1 (Backend):
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+python -m api.main
+```
+
+Terminal 2 (Frontend):
+```bash
+npm run dev
+# or: yarn dev
+```
+</Step>
+</Steps>
+
+</Tab>
+
+<Tab title="Development Setup">
+### Development Setup
+
+For contributors and developers who want to modify DeepWiki-Open.
+
+<Steps>
+<Step title="Fork Repository">
+1. Fork the repository on GitHub
+2. Clone your fork:
+
+```bash
+git clone https://github.com/YOUR_USERNAME/deepwiki-open.git
+cd deepwiki-open
+```
+</Step>
+
+<Step title="Set Up Development Environment">
+```bash
+# Install Python development dependencies
+pip install -r api/requirements.txt
+pip install -r api/requirements-dev.txt  # if exists
+
+# Install Node.js development dependencies
+npm install
+
+# Install pre-commit hooks (if available)
+pre-commit install
+```
+</Step>
+
+<Step title="Configure Development Settings">
+Create `.env.development`:
+
+```env
+# Development environment
+NODE_ENV=development
+LOG_LEVEL=DEBUG
+LOG_FILE_PATH=./api/logs/development.log
+
+# API Configuration
+PORT=8001
+SERVER_BASE_URL=http://localhost:8001
+
+# Your API keys
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+</Step>
+
+<Step title="Set Up Hot Reloading">
+For development with hot reloading:
+
+```bash
+# Terminal 1: Backend with auto-reload
+python -m api.main  # Already includes reload in development
+
+# Terminal 2: Frontend with Turbopack
+npm run dev  # Uses Next.js Turbopack for fast refresh
+```
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+## Verification
+
+After installation, verify that everything is working correctly:
+
+<Steps>
+<Step title="Check Backend Health">
+```bash
+# Test backend API
+curl http://localhost:8001/health
+
+# Or visit in browser
+open http://localhost:8001/docs
+```
+
+Expected response:
+```json
+{"status": "healthy", "version": "0.1.0"}
+```
+</Step>
+
+<Step title="Check Frontend">
+Visit [http://localhost:3000](http://localhost:3000) in your browser.
+
+You should see:
+- DeepWiki-Open interface
+- Repository URL input field
+- Model selection dropdown
+- Generate Wiki button
+</Step>
+
+<Step title="Test Full Workflow">
+1. Enter a small public repository (e.g., `https://github.com/octocat/Hello-World`)
+2. Select an AI model provider
+3. Click "Generate Wiki"
+4. Verify wiki generation completes successfully
+</Step>
+</Steps>
+
+## Optional Dependencies
+
+<AccordionGroup>
+<Accordion title="Ollama (Local AI Models)">
+To run AI models locally using Ollama:
+
+<Tabs>
+<Tab title="macOS">
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Or using Homebrew
+brew install ollama
+
+# Start Ollama service
+ollama serve
+
+# Pull a model
+ollama pull llama3:8b
+```
+</Tab>
+
+<Tab title="Linux">
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Start as service
+sudo systemctl start ollama
+sudo systemctl enable ollama
+
+# Pull a model
+ollama pull llama3:8b
+```
+</Tab>
+
+<Tab title="Windows">
+Download and install from [Ollama website](https://ollama.ai/download)
+
+Then in PowerShell:
+```powershell
+ollama pull llama3:8b
+```
+</Tab>
+</Tabs>
+
+Update your `.env`:
+```env
+OLLAMA_HOST=http://localhost:11434
+```
+</Accordion>
+
+<Accordion title="Redis (Caching)">
+For improved performance in production:
+
+<Tabs>
+<Tab title="macOS">
+```bash
+brew install redis
+brew services start redis
+```
+</Tab>
+
+<Tab title="Linux">
+```bash
+sudo apt update
+sudo apt install redis-server
+sudo systemctl start redis
+sudo systemctl enable redis
+```
+</Tab>
+
+<Tab title="Docker">
+```bash
+docker run -d -p 6379:6379 redis:alpine
+```
+</Tab>
+</Tabs>
+
+Add to `.env`:
+```env
+REDIS_URL=redis://localhost:6379
+```
+</Accordion>
+</AccordionGroup>
+
+## Troubleshooting Installation
+
+<AccordionGroup>
+<Accordion title="Python Installation Issues">
+**Problem**: `python: command not found`
+
+**Solutions**:
+```bash
+# Check if python3 is available
+python3 --version
+
+# Create alias (add to ~/.bashrc or ~/.zshrc)
+alias python=python3
+
+# Or install Python properly
+sudo apt install python-is-python3  # Ubuntu/Debian
+```
+</Accordion>
+
+<Accordion title="Node.js Installation Issues">
+**Problem**: `npm ERR! EACCES: permission denied`
+
+**Solutions**:
+```bash
+# Use Node Version Manager (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+nvm install 18
+nvm use 18
+
+# Or fix npm permissions
+sudo chown -R $(whoami) ~/.npm
+```
+</Accordion>
+
+<Accordion title="Docker Issues">
+**Problem**: `Cannot connect to Docker daemon`
+
+**Solutions**:
+```bash
+# Start Docker service
+sudo systemctl start docker
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Then log out and back in
+
+# Or run with sudo (not recommended for development)
+sudo docker-compose up
+```
+</Accordion>
+
+<Accordion title="Port Conflicts">
+**Problem**: `Port already in use`
+
+**Solutions**:
+```bash
+# Find what's using the port
+lsof -i :3000  # or :8001
+
+# Kill the process
+kill -9 PID
+
+# Or use different ports in .env
+PORT=8002
+# Update frontend to use new backend port
+```
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Environment Configuration" icon="gear" href="/getting-started/environment-variables">
+  Configure API keys and environment settings
+</Card>
+
+<Card title="Model Providers Setup" icon="brain" href="/getting-started/model-providers">
+  Set up AI model providers for documentation generation
+</Card>
+
+<Card title="Generate Your First Wiki" icon="rocket" href="/getting-started/first-wiki">
+  Create your first repository wiki
+</Card>
+
+<Card title="Production Deployment" icon="cloud" href="/guides/production-setup">
+  Deploy DeepWiki for production use
+</Card>
+</CardGroup>

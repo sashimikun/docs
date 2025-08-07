@@ -1,0 +1,835 @@
+---
+title: Configuration Files
+description: Complete reference for all DeepWikiOpen configuration files and options
+---
+
+# Configuration Files Reference
+
+DeepWikiOpen uses multiple configuration files to control various aspects of documentation generation, embedding, and deployment. This guide covers all configuration options with complete examples and best practices.
+
+## Configuration Overview
+
+DeepWikiOpen configuration follows a hierarchical structure:
+
+```
+project-root/
+├── generator.json       # Main generation config
+├── embedder.json       # Embedding settings
+├── repo.json          # Repository filters
+├── .env               # Environment variables
+├── docker-compose.yml # Docker configuration
+└── config/            # Custom config directory
+    ├── overrides.json
+    └── templates/
+```
+
+## 1. generator.json Structure
+
+The main configuration file controlling documentation generation.
+
+### Complete Schema
+
+```json
+{
+  "$schema": "https://deepwikiopen.com/schemas/generator.json",
+  "version": "2.0",
+  "name": "project-name",
+  "description": "Project description",
+  "output": {
+    "directory": "./docs",
+    "format": "mdx",
+    "clean": true,
+    "preserveStructure": true
+  },
+  "source": {
+    "directories": ["src", "lib"],
+    "extensions": [".ts", ".tsx", ".js", ".jsx"],
+    "exclude": ["**/*.test.*", "**/node_modules/**"],
+    "followSymlinks": false
+  },
+  "parsing": {
+    "parser": "typescript",
+    "parserOptions": {
+      "ecmaVersion": 2022,
+      "sourceType": "module",
+      "ecmaFeatures": {
+        "jsx": true
+      }
+    },
+    "plugins": ["jsdoc", "typescript"]
+  },
+  "generation": {
+    "includePrivate": false,
+    "includeInternal": false,
+    "groupBy": "category",
+    "sortBy": "alphabetical",
+    "template": "default",
+    "customTemplates": "./templates"
+  },
+  "features": {
+    "searchIndex": true,
+    "apiReference": true,
+    "changelog": true,
+    "examples": true,
+    "playground": false
+  },
+  "metadata": {
+    "author": "Your Name",
+    "license": "MIT",
+    "repository": "https://github.com/user/repo",
+    "homepage": "https://project.com"
+  }
+}
+```
+
+### Key Options Explained
+
+#### Output Configuration
+```json
+{
+  "output": {
+    "directory": "./docs",        // Output directory path
+    "format": "mdx",             // Output format: mdx, markdown, html
+    "clean": true,               // Clean output dir before generation
+    "preserveStructure": true,   // Maintain source directory structure
+    "assets": "./assets",        // Static assets directory
+    "publicPath": "/docs"        // Base path for deployment
+  }
+}
+```
+
+#### Source Configuration
+```json
+{
+  "source": {
+    "directories": ["src", "lib", "packages/**/src"],
+    "extensions": [".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte"],
+    "exclude": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**"
+    ],
+    "include": ["README.md", "CHANGELOG.md"],
+    "followSymlinks": false,
+    "maxDepth": 10
+  }
+}
+```
+
+#### Advanced Parsing Options
+```json
+{
+  "parsing": {
+    "parser": "typescript",
+    "parserOptions": {
+      "ecmaVersion": 2022,
+      "sourceType": "module",
+      "ecmaFeatures": {
+        "jsx": true,
+        "decorators": true,
+        "dynamicImport": true
+      }
+    },
+    "tsconfig": "./tsconfig.json",
+    "plugins": ["jsdoc", "typescript", "flow"],
+    "customParsers": {
+      ".vue": "vue-parser",
+      ".svelte": "svelte-parser"
+    }
+  }
+}
+```
+
+## 2. embedder.json Configuration
+
+Controls vector embedding generation for semantic search.
+
+### Complete Schema
+
+```json
+{
+  "$schema": "https://deepwikiopen.com/schemas/embedder.json",
+  "version": "1.0",
+  "model": {
+    "provider": "openai",
+    "name": "text-embedding-3-small",
+    "dimensions": 1536,
+    "maxTokens": 8192
+  },
+  "processing": {
+    "chunkSize": 1000,
+    "chunkOverlap": 200,
+    "minChunkSize": 100,
+    "splitter": "recursive",
+    "batchSize": 100
+  },
+  "storage": {
+    "type": "chroma",
+    "path": "./embeddings",
+    "collection": "docs",
+    "persistence": true
+  },
+  "indexing": {
+    "includeCode": true,
+    "includeComments": true,
+    "includeDocstrings": true,
+    "languages": ["typescript", "javascript", "python"],
+    "metadata": {
+      "extractTags": true,
+      "extractAuthors": true,
+      "extractDates": true
+    }
+  },
+  "optimization": {
+    "cache": true,
+    "cacheDir": "./.embedding-cache",
+    "parallel": true,
+    "workers": 4
+  }
+}
+```
+
+### Provider-Specific Configurations
+
+#### OpenAI Configuration
+```json
+{
+  "model": {
+    "provider": "openai",
+    "name": "text-embedding-3-large",
+    "dimensions": 3072,
+    "apiKey": "${OPENAI_API_KEY}",
+    "baseUrl": "https://api.openai.com/v1"
+  }
+}
+```
+
+#### Ollama Configuration
+```json
+{
+  "model": {
+    "provider": "ollama",
+    "name": "nomic-embed-text",
+    "dimensions": 768,
+    "baseUrl": "http://localhost:11434"
+  }
+}
+```
+
+#### Hugging Face Configuration
+```json
+{
+  "model": {
+    "provider": "huggingface",
+    "name": "sentence-transformers/all-MiniLM-L6-v2",
+    "dimensions": 384,
+    "device": "cuda",
+    "apiKey": "${HF_TOKEN}"
+  }
+}
+```
+
+## 3. repo.json File Filters
+
+Controls file processing and repository limits.
+
+### Complete Schema
+
+```json
+{
+  "$schema": "https://deepwikiopen.com/schemas/repo.json",
+  "version": "1.0",
+  "filters": {
+    "include": {
+      "patterns": [
+        "src/**/*.{ts,tsx,js,jsx}",
+        "lib/**/*.{ts,tsx,js,jsx}",
+        "docs/**/*.{md,mdx}"
+      ],
+      "minSize": 0,
+      "maxSize": 1048576
+    },
+    "exclude": {
+      "patterns": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/dist/**",
+        "**/coverage/**",
+        "**/*.min.js"
+      ],
+      "dotfiles": true,
+      "vendored": true,
+      "generated": true
+    }
+  },
+  "limits": {
+    "maxFiles": 10000,
+    "maxFileSize": 5242880,
+    "maxTotalSize": 104857600,
+    "maxDepth": 20
+  },
+  "processing": {
+    "detectLanguage": true,
+    "extractMetadata": true,
+    "parseImports": true,
+    "analyzeDependencies": true
+  },
+  "languages": {
+    "typescript": {
+      "extensions": [".ts", ".tsx"],
+      "parser": "typescript"
+    },
+    "javascript": {
+      "extensions": [".js", ".jsx", ".mjs"],
+      "parser": "babel"
+    },
+    "python": {
+      "extensions": [".py"],
+      "parser": "python"
+    }
+  }
+}
+```
+
+### Advanced Filtering Examples
+
+```json
+{
+  "filters": {
+    "include": {
+      "patterns": [
+        "packages/*/src/**/*.ts",
+        "!packages/*/src/**/*.test.ts"
+      ],
+      "rules": [
+        {
+          "pattern": "*.config.js",
+          "maxSize": 102400
+        }
+      ]
+    },
+    "exclude": {
+      "patterns": ["**/temp/**"],
+      "keywords": ["GENERATED", "AUTO-GENERATED"],
+      "licenses": ["proprietary", "confidential"]
+    }
+  }
+}
+```
+
+## 4. Environment Variables Reference
+
+### Core Variables
+
+```bash
+# API Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+HF_TOKEN=hf_...
+
+# Database
+DATABASE_URL=postgresql://user:pass@localhost:5432/deepwiki
+REDIS_URL=redis://localhost:6379
+
+# Storage
+S3_BUCKET=deepwiki-docs
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+
+# Server Configuration
+PORT=3000
+HOST=0.0.0.0
+NODE_ENV=production
+LOG_LEVEL=info
+
+# Feature Flags
+ENABLE_EMBEDDINGS=true
+ENABLE_SEARCH=true
+ENABLE_ANALYTICS=false
+ENABLE_CACHE=true
+
+# Security
+JWT_SECRET=your-secret-key
+ENCRYPTION_KEY=your-encryption-key
+ALLOWED_ORIGINS=https://example.com,https://app.example.com
+
+# Limits
+MAX_FILE_SIZE=5MB
+MAX_REQUEST_SIZE=10MB
+RATE_LIMIT_WINDOW=15m
+RATE_LIMIT_MAX=100
+```
+
+### Development Variables
+
+```bash
+# Development
+DEV_MODE=true
+HOT_RELOAD=true
+VERBOSE_LOGGING=true
+SKIP_AUTH=true
+
+# Testing
+TEST_DATABASE_URL=postgresql://test:test@localhost:5432/test
+MOCK_EMBEDDINGS=true
+```
+
+## 5. Docker Configuration
+
+### docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./docs:/app/docs
+      - ./config:/app/config:ro
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: deepwiki
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docs:/usr/share/nginx/html:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - app
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+### Dockerfile Configuration
+
+```dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy configuration files
+COPY package*.json ./
+COPY generator.json embedder.json repo.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source
+COPY . .
+
+# Build
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/*.json ./
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+
+# Set ownership
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+EXPOSE 3000
+
+CMD ["node", "dist/index.js"]
+```
+
+## 6. Custom Configuration Directory
+
+### Directory Structure
+
+```
+config/
+├── environments/
+│   ├── development.json
+│   ├── staging.json
+│   └── production.json
+├── features/
+│   ├── search.json
+│   ├── embeddings.json
+│   └── analytics.json
+├── overrides.json
+└── templates/
+    ├── page.mdx
+    └── component.mdx
+```
+
+### Environment-Specific Config
+
+```json
+// config/environments/production.json
+{
+  "extends": "../generator.json",
+  "output": {
+    "directory": "/var/www/docs",
+    "publicPath": "https://docs.example.com"
+  },
+  "features": {
+    "playground": false,
+    "analytics": true
+  },
+  "optimization": {
+    "minify": true,
+    "compress": true,
+    "cache": true
+  }
+}
+```
+
+### Feature Toggles
+
+```json
+// config/features/search.json
+{
+  "search": {
+    "enabled": true,
+    "provider": "algolia",
+    "config": {
+      "appId": "${ALGOLIA_APP_ID}",
+      "apiKey": "${ALGOLIA_API_KEY}",
+      "indexName": "docs"
+    },
+    "options": {
+      "facets": ["category", "tags", "language"],
+      "snippetLength": 200,
+      "highlightPreTag": "<mark>",
+      "highlightPostTag": "</mark>"
+    }
+  }
+}
+```
+
+## 7. Configuration Inheritance and Overrides
+
+### Inheritance Chain
+
+```javascript
+// Configuration precedence (highest to lowest):
+1. Environment variables
+2. CLI arguments
+3. Override files
+4. Environment-specific configs
+5. Base configuration files
+6. Default values
+```
+
+### Override Example
+
+```json
+// config/overrides.json
+{
+  "extends": ["./generator.json", "./environments/production.json"],
+  "merge": {
+    "output": {
+      "directory": "/custom/path"
+    }
+  },
+  "replace": {
+    "features": {
+      "playground": true
+    }
+  }
+}
+```
+
+### Programmatic Configuration
+
+```javascript
+// config.js
+module.exports = {
+  generator: {
+    async beforeGenerate(config) {
+      // Dynamic configuration
+      if (process.env.ENABLE_BETA_FEATURES) {
+        config.features.beta = true;
+      }
+      return config;
+    },
+    
+    async afterGenerate(result, config) {
+      // Post-processing
+      console.log(`Generated ${result.files.length} files`);
+    }
+  }
+};
+```
+
+## 8. Best Practices
+
+### 1. Use Environment Variables for Secrets
+
+```json
+{
+  "api": {
+    "key": "${API_KEY}",
+    "secret": "${API_SECRET}"
+  }
+}
+```
+
+### 2. Separate Concerns
+
+```
+config/
+├── generation.json    # Documentation generation
+├── deployment.json    # Deployment settings
+├── security.json      # Security policies
+└── performance.json   # Performance tuning
+```
+
+### 3. Version Control Strategy
+
+```gitignore
+# .gitignore
+.env
+.env.local
+config/secrets.json
+config/production.json
+```
+
+### 4. Validation
+
+```javascript
+// validate-config.js
+const { validateConfig } = require('deepwikiopen');
+
+async function validate() {
+  try {
+    await validateConfig('./generator.json');
+    console.log('Configuration is valid');
+  } catch (error) {
+    console.error('Configuration error:', error);
+    process.exit(1);
+  }
+}
+```
+
+### 5. Configuration Templates
+
+```json
+// config/templates/microservice.json
+{
+  "name": "${SERVICE_NAME}",
+  "source": {
+    "directories": ["./src"],
+    "extensions": [".ts"]
+  },
+  "output": {
+    "directory": "./docs/${SERVICE_NAME}"
+  }
+}
+```
+
+## 9. Security Considerations
+
+### Sensitive Data Protection
+
+```json
+{
+  "security": {
+    "encryption": {
+      "enabled": true,
+      "algorithm": "aes-256-gcm",
+      "keySource": "env:ENCRYPTION_KEY"
+    },
+    "secrets": {
+      "provider": "vault",
+      "endpoint": "${VAULT_ENDPOINT}",
+      "namespace": "deepwiki"
+    }
+  }
+}
+```
+
+### Access Control
+
+```json
+{
+  "access": {
+    "authentication": {
+      "required": true,
+      "providers": ["oauth", "saml"]
+    },
+    "authorization": {
+      "roles": {
+        "admin": ["*"],
+        "developer": ["read", "generate"],
+        "viewer": ["read"]
+      }
+    }
+  }
+}
+```
+
+### Audit Configuration
+
+```json
+{
+  "audit": {
+    "enabled": true,
+    "events": ["config.changed", "generation.started", "generation.completed"],
+    "retention": "30d",
+    "storage": "s3://audit-logs"
+  }
+}
+```
+
+## 10. Migration Between Versions
+
+### Version 1.x to 2.x Migration
+
+```javascript
+// migrate-config.js
+const { migrateConfig } = require('deepwikiopen/migrate');
+
+async function migrate() {
+  const oldConfig = require('./generator.v1.json');
+  
+  const newConfig = await migrateConfig(oldConfig, {
+    from: '1.x',
+    to: '2.x',
+    transforms: {
+      // Custom transformations
+      'output.path': 'output.directory',
+      'parse.include': 'source.extensions'
+    }
+  });
+  
+  await fs.writeFile('./generator.json', JSON.stringify(newConfig, null, 2));
+}
+```
+
+### Breaking Changes Checklist
+
+```markdown
+## Migration Checklist
+
+- [ ] Backup existing configuration
+- [ ] Update schema version
+- [ ] Rename deprecated fields
+- [ ] Update environment variables
+- [ ] Test with dry-run
+- [ ] Update CI/CD pipelines
+- [ ] Update documentation
+```
+
+### Compatibility Mode
+
+```json
+{
+  "version": "2.0",
+  "compatibility": {
+    "mode": "1.x",
+    "warnings": true,
+    "strict": false
+  }
+}
+```
+
+## Configuration Debugging
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+DEBUG=deepwiki:config npm run generate
+
+# Validate configuration
+npm run validate-config
+
+# Show resolved configuration
+npm run show-config
+```
+
+### Common Issues
+
+1. **Path Resolution**
+   ```json
+   {
+     "paths": {
+       "base": "${__dirname}",
+       "resolve": ["node_modules", "../shared"]
+     }
+   }
+   ```
+
+2. **Environment Variable Expansion**
+   ```json
+   {
+     "database": {
+       "url": "${DATABASE_URL:-postgresql://localhost:5432/dev}"
+     }
+   }
+   ```
+
+3. **Circular Dependencies**
+   ```json
+   {
+     "extends": "./base.json",
+     "validate": {
+       "circular": false
+     }
+   }
+   ```
+
+## Next Steps
+
+- [Environment Setup Guide](/deployment/environment-setup)
+- [Security Best Practices](/deployment/security-best-practices)
+- [Performance Tuning](/deployment/performance-tuning)
+- [Troubleshooting Guide](/troubleshooting)

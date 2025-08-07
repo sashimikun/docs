@@ -1,0 +1,439 @@
+# Contributing to DeepWikiOpen
+
+Thank you for your interest in contributing to DeepWikiOpen! We're excited to have you join our community. This guide will help you get started with contributing to our project.
+
+## 🤝 Code of Conduct
+
+We are committed to providing a welcoming and inclusive environment for all contributors. By participating in this project, you agree to abide by our Code of Conduct:
+
+### Our Pledge
+
+We pledge to make participation in our project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+
+### Expected Behavior
+
+- Use welcoming and inclusive language
+- Be respectful of differing viewpoints and experiences
+- Gracefully accept constructive criticism
+- Focus on what is best for the community
+- Show empathy towards other community members
+
+### Unacceptable Behavior
+
+- Harassment, discrimination, or hate speech of any kind
+- Personal attacks or insults
+- Publishing others' private information without consent
+- Any conduct that could reasonably be considered inappropriate
+
+### Enforcement
+
+Violations of the Code of Conduct may result in temporary or permanent exclusion from the project. Please report any incidents to [conduct@deepwikiopen.org](mailto:conduct@deepwikiopen.org).
+
+## 🐛 How to Report Issues
+
+We use GitHub Issues to track bugs, feature requests, and other project-related discussions.
+
+### Before Reporting an Issue
+
+1. **Search existing issues** to avoid duplicates
+2. **Check the documentation** to ensure it's not a known limitation
+3. **Try the latest version** to see if the issue has been fixed
+
+### Creating a Bug Report
+
+When reporting a bug, please include:
+
+```markdown
+**Describe the bug**
+A clear and concise description of what the bug is.
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+**Expected behavior**
+What you expected to happen.
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+**Environment:**
+ - OS: [e.g. macOS, Windows, Linux]
+ - Browser [e.g. Chrome, Safari]
+ - Version [e.g. 22]
+
+**Additional context**
+Any other context about the problem.
+```
+
+## 💡 Feature Request Process
+
+We love hearing your ideas for improving DeepWikiOpen!
+
+### Submitting a Feature Request
+
+1. **Check existing requests** in Issues and Discussions
+2. **Create a new issue** with the "feature request" label
+3. **Provide detailed information:**
+   - Clear description of the feature
+   - Use cases and benefits
+   - Potential implementation approach
+   - Any relevant examples or mockups
+
+### Feature Request Template
+
+```markdown
+**Is your feature request related to a problem?**
+A clear description of what the problem is.
+
+**Describe the solution you'd like**
+A clear description of what you want to happen.
+
+**Describe alternatives you've considered**
+Any alternative solutions or features you've considered.
+
+**Additional context**
+Add any other context or screenshots about the feature request.
+```
+
+## 🚀 Development Setup
+
+Follow these steps to set up your development environment:
+
+### Prerequisites
+
+- Node.js 18.0 or higher
+- npm or yarn package manager
+- Git
+- A code editor (we recommend VS Code)
+
+### Setup Instructions
+
+```bash
+# Clone the repository
+git clone https://github.com/deepwikiopen/deepwikiopen-docs.git
+cd deepwikiopen-docs
+
+# Install dependencies
+npm install
+# or
+yarn install
+
+# Create a development branch
+git checkout -b feature/your-feature-name
+
+# Start the development server
+npm run dev
+# or
+yarn dev
+```
+
+### Environment Configuration
+
+Create a `.env.local` file in the root directory:
+
+```env
+# Add any required environment variables
+API_KEY=your_api_key_here
+DATABASE_URL=your_database_url
+```
+
+## 📝 Code Style Guidelines
+
+We maintain consistent code style to ensure readability and maintainability.
+
+### General Guidelines
+
+- Use **TypeScript** for all new code
+- Follow **ESLint** and **Prettier** configurations
+- Write **self-documenting code** with clear variable and function names
+- Keep functions **small and focused** (single responsibility)
+- Use **meaningful commit messages** following conventional commits
+
+### TypeScript Style
+
+```typescript
+// Good example
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+}
+
+export async function getUserById(id: string): Promise<UserData | null> {
+  try {
+    const user = await db.users.findById(id);
+    return user;
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return null;
+  }
+}
+```
+
+### React/Component Style
+
+```tsx
+// Good component example
+interface ButtonProps {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+}
+
+export function Button({ 
+  label, 
+  onClick, 
+  variant = 'primary', 
+  disabled = false 
+}: ButtonProps) {
+  return (
+    <button
+      className={`btn btn-${variant}`}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {label}
+    </button>
+  );
+}
+```
+
+### Running Code Quality Checks
+
+```bash
+# Lint your code
+npm run lint
+
+# Format with Prettier
+npm run format
+
+# Type check
+npm run typecheck
+```
+
+## 🧪 Testing Requirements
+
+All contributions must include appropriate tests.
+
+### Test Categories
+
+1. **Unit Tests** - Test individual functions and components
+2. **Integration Tests** - Test component interactions
+3. **End-to-End Tests** - Test complete user workflows
+
+### Writing Tests
+
+```typescript
+// Example unit test
+describe('getUserById', () => {
+  it('should return user data when user exists', async () => {
+    const userId = 'test-123';
+    const result = await getUserById(userId);
+    
+    expect(result).toBeDefined();
+    expect(result?.id).toBe(userId);
+  });
+
+  it('should return null when user does not exist', async () => {
+    const result = await getUserById('non-existent');
+    expect(result).toBeNull();
+  });
+});
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm test:watch
+
+# Run tests with coverage
+npm test:coverage
+```
+
+### Test Coverage Requirements
+
+- Maintain **minimum 80% code coverage**
+- All new features must include tests
+- Bug fixes should include regression tests
+
+## 📚 Documentation Standards
+
+Good documentation is crucial for project success.
+
+### Documentation Types
+
+1. **Code Comments** - Explain complex logic
+2. **API Documentation** - Document all public APIs
+3. **User Guides** - Help users understand features
+4. **Developer Guides** - Help contributors understand the codebase
+
+### Documentation Style
+
+```typescript
+/**
+ * Fetches user data by ID from the database.
+ * 
+ * @param id - The unique identifier of the user
+ * @returns Promise resolving to UserData or null if not found
+ * @throws {DatabaseError} When database connection fails
+ * 
+ * @example
+ * ```typescript
+ * const user = await getUserById('user-123');
+ * if (user) {
+ *   console.log(user.name);
+ * }
+ * ```
+ */
+export async function getUserById(id: string): Promise<UserData | null> {
+  // Implementation
+}
+```
+
+### MDX Documentation
+
+When writing MDX documentation:
+
+- Use clear, concise language
+- Include code examples
+- Add visual aids when helpful
+- Structure content with proper headings
+- Include a table of contents for long documents
+
+## 🔄 Pull Request Process
+
+### Before Creating a PR
+
+1. **Fork the repository** and create a feature branch
+2. **Make your changes** following our guidelines
+3. **Write/update tests** for your changes
+4. **Update documentation** as needed
+5. **Run all checks** locally:
+   ```bash
+   npm run lint
+   npm run test
+   npm run build
+   ```
+
+### Creating a Pull Request
+
+1. **Push your branch** to your fork
+2. **Create a PR** from your fork to our main branch
+3. **Fill out the PR template** completely:
+
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+- [ ] Tests pass locally
+- [ ] Added new tests
+- [ ] Updated existing tests
+
+## Checklist
+- [ ] Code follows style guidelines
+- [ ] Self-reviewed my code
+- [ ] Commented complex code
+- [ ] Updated documentation
+- [ ] No breaking changes
+```
+
+### PR Review Process
+
+1. **Automated checks** run on all PRs
+2. **Code review** by maintainers
+3. **Address feedback** promptly
+4. **Approval and merge** by maintainers
+
+### Tips for Getting Your PR Merged
+
+- Keep PRs **focused and small**
+- Write **clear commit messages**
+- **Respond to feedback** constructively
+- Be **patient and respectful**
+- **Update your PR** if merge conflicts arise
+
+## 💬 Community Channels
+
+Join our community to get help, share ideas, and connect with other contributors:
+
+### Official Channels
+
+- **GitHub Discussions** - General discussions and Q&A
+- **Discord Server** - [Join our Discord](https://discord.gg/deepwikiopen)
+- **Twitter/X** - [@deepwikiopen](https://twitter.com/deepwikiopen)
+- **Blog** - [blog.deepwikiopen.org](https://blog.deepwikiopen.org)
+
+### Community Guidelines
+
+- Be helpful and supportive
+- Share knowledge freely
+- Respect different skill levels
+- Keep discussions on-topic
+- Report inappropriate behavior
+
+### Getting Help
+
+- **Documentation** - Start with our docs
+- **FAQ** - Check frequently asked questions
+- **Discord #help** - Ask the community
+- **GitHub Discussions** - For deeper technical discussions
+
+## 🏆 Recognition and Credits
+
+We believe in recognizing all contributions to our project!
+
+### Types of Contributions We Recognize
+
+- **Code contributions** - Features, bug fixes, improvements
+- **Documentation** - Guides, API docs, examples
+- **Design** - UI/UX improvements, graphics
+- **Testing** - Test cases, bug reports
+- **Community** - Helping others, organizing events
+- **Translations** - Localizing content
+
+### How We Recognize Contributors
+
+1. **Contributors File** - All contributors listed in CONTRIBUTORS.md
+2. **Release Notes** - Contributors mentioned in releases
+3. **Website Credits** - Featured on our website
+4. **Contributor Badge** - Special Discord role
+5. **Swag** - Top contributors receive DeepWikiOpen swag
+
+### Becoming a Core Contributor
+
+Consistent, high-quality contributions may lead to:
+- Write access to the repository
+- Invitation to maintainer meetings
+- Decision-making in project direction
+- Mentoring new contributors
+
+### All Contributors
+
+We use the [All Contributors](https://allcontributors.org/) specification to recognize all types of contributions. Your avatar will appear in our README!
+
+---
+
+## 🎉 Thank You!
+
+Every contribution, no matter how small, helps make DeepWikiOpen better. We're grateful for your time and effort in improving our project.
+
+If you have any questions not covered in this guide, please don't hesitate to ask in our community channels. We're here to help!
+
+Happy contributing! 🚀

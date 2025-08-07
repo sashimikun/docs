@@ -1,0 +1,1007 @@
+# Enterprise Deployment Guide
+
+This guide covers comprehensive enterprise deployment strategies for DeepWikiOpen, focusing on security, scalability, and compliance requirements for production environments.
+
+## Table of Contents
+
+1. [Private API Channel Configuration](#private-api-channel-configuration)
+2. [Custom Base URL Setup](#custom-base-url-setup)
+3. [Authorization Mode Configuration](#authorization-mode-configuration)
+4. [Multi-User Deployment Strategies](#multi-user-deployment-strategies)
+5. [Security Hardening](#security-hardening)
+6. [Corporate Authentication Integration](#corporate-authentication-integration)
+7. [Monitoring and Logging](#monitoring-and-logging)
+8. [High Availability Configuration](#high-availability-configuration)
+9. [Backup and Disaster Recovery](#backup-and-disaster-recovery)
+10. [Compliance Considerations](#compliance-considerations)
+
+## Private API Channel Configuration
+
+Configure DeepWikiOpen to use private API channels for enhanced security and control.
+
+### API Gateway Setup
+
+```yaml
+# api-gateway-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deepwikiopen-api-config
+data:
+  api-config.json: |
+    {
+      "channels": {
+        "private": {
+          "endpoint": "https://api-internal.company.com/deepwiki",
+          "protocol": "https",
+          "port": 443,
+          "timeout": 30000,
+          "retryPolicy": {
+            "maxRetries": 3,
+            "backoffMultiplier": 2
+          }
+        }
+      },
+      "routing": {
+        "defaultChannel": "private",
+        "fallbackEnabled": false
+      }
+    }
+```
+
+### Environment Configuration
+
+```bash
+# .env.production
+DEEPWIKI_API_CHANNEL=private
+DEEPWIKI_API_ENDPOINT=https://api-internal.company.com/deepwiki
+DEEPWIKI_API_KEY_ROTATION_DAYS=30
+DEEPWIKI_API_RATE_LIMIT=1000
+DEEPWIKI_API_BURST_LIMIT=2000
+```
+
+### Network Isolation
+
+```yaml
+# network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deepwikiopen-api-isolation
+spec:
+  podSelector:
+    matchLabels:
+      app: deepwikiopen
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: api-gateway
+    ports:
+    - protocol: TCP
+      port: 443
+```
+
+## Custom Base URL Setup
+
+Configure custom base URLs for corporate proxy environments.
+
+### Proxy Configuration
+
+```javascript
+// config/proxy.js
+module.exports = {
+  production: {
+    baseUrl: process.env.CORPORATE_BASE_URL || 'https://deepwiki.company.com',
+    proxy: {
+      host: process.env.PROXY_HOST || 'proxy.company.com',
+      port: process.env.PROXY_PORT || 8080,
+      auth: {
+        username: process.env.PROXY_USERNAME,
+        password: process.env.PROXY_PASSWORD
+      },
+      protocol: 'https'
+    },
+    bypassList: [
+      'localhost',
+      '127.0.0.1',
+      '.company.internal'
+    ]
+  }
+}
+```
+
+### Reverse Proxy Setup (NGINX)
+
+```nginx
+# nginx.conf
+upstream deepwikiopen_backend {
+    least_conn;
+    server backend1.internal:8080 weight=5;
+    server backend2.internal:8080 weight=5;
+    server backend3.internal:8080 weight=5;
+    
+    keepalive 32;
+    keepalive_requests 100;
+    keepalive_timeout 60s;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name deepwiki.company.com;
+    
+    ssl_certificate /etc/nginx/certs/company.crt;
+    ssl_certificate_key /etc/nginx/certs/company.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    location / {
+        proxy_pass https://deepwikiopen_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Corporate headers
+        proxy_set_header X-Company-User $http_x_company_user;
+        proxy_set_header X-Company-Department $http_x_company_department;
+        
+        # Security headers
+        add_header X-Content-Type-Options nosniff;
+        add_header X-Frame-Options DENY;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains";
+    }
+}
+```
+
+## Authorization Mode Configuration
+
+Implement robust authorization modes for enterprise environments.
+
+### RBAC Configuration
+
+```yaml
+# rbac-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deepwikiopen-rbac
+data:
+  roles.json: |
+    {
+      "roles": {
+        "admin": {
+          "permissions": ["read", "write", "delete", "admin"],
+          "resources": ["*"]
+        },
+        "developer": {
+          "permissions": ["read", "write"],
+          "resources": ["projects/*", "documents/*"]
+        },
+        "viewer": {
+          "permissions": ["read"],
+          "resources": ["documents/*", "public/*"]
+        }
+      },
+      "defaultRole": "viewer",
+      "superAdmins": ["admin@company.com"]
+    }
+```
+
+### OAuth2/OIDC Integration
+
+```javascript
+// auth/oauth-config.js
+const OIDCStrategy = require('passport-openidconnect').Strategy;
+
+module.exports = {
+  strategy: new OIDCStrategy({
+    issuer: process.env.OIDC_ISSUER || 'https://auth.company.com',
+    authorizationURL: 'https://auth.company.com/authorize',
+    tokenURL: 'https://auth.company.com/token',
+    userInfoURL: 'https://auth.company.com/userinfo',
+    clientID: process.env.OIDC_CLIENT_ID,
+    clientSecret: process.env.OIDC_CLIENT_SECRET,
+    callbackURL: 'https://deepwiki.company.com/auth/callback',
+    scope: ['openid', 'profile', 'email', 'groups']
+  }, (issuer, profile, done) => {
+    // Map corporate groups to DeepWiki roles
+    const roles = mapCorporateGroups(profile.groups);
+    return done(null, {
+      id: profile.id,
+      email: profile.email,
+      roles: roles,
+      department: profile.department
+    });
+  }),
+  
+  sessionConfig: {
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: true,
+      httpOnly: true,
+      maxAge: 8 * 60 * 60 * 1000, // 8 hours
+      sameSite: 'strict'
+    }
+  }
+};
+```
+
+### API Key Management
+
+```javascript
+// auth/api-key-manager.js
+class EnterpriseAPIKeyManager {
+  constructor(config) {
+    this.rotationDays = config.rotationDays || 30;
+    this.keyVault = config.keyVault;
+  }
+  
+  async rotateKeys() {
+    const keys = await this.keyVault.listKeys();
+    const now = Date.now();
+    
+    for (const key of keys) {
+      if (now - key.createdAt > this.rotationDays * 24 * 60 * 60 * 1000) {
+        // Generate new key
+        const newKey = await this.generateSecureKey();
+        
+        // Store in vault
+        await this.keyVault.store({
+          id: key.id,
+          key: newKey,
+          createdAt: now,
+          previousKey: key.key,
+          rotatedAt: now
+        });
+        
+        // Notify administrators
+        await this.notifyKeyRotation(key.id);
+      }
+    }
+  }
+  
+  async generateSecureKey() {
+    const crypto = require('crypto');
+    return crypto.randomBytes(32).toString('base64');
+  }
+}
+```
+
+## Multi-User Deployment Strategies
+
+### Kubernetes Deployment
+
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwikiopen
+  labels:
+    app: deepwikiopen
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: deepwikiopen
+  template:
+    metadata:
+      labels:
+        app: deepwikiopen
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - deepwikiopen
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: deepwikiopen
+        image: company.registry.io/deepwikiopen:enterprise-1.0
+        ports:
+        - containerPort: 8080
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: MULTI_TENANT_MODE
+          value: "true"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+```
+
+### Multi-Tenant Configuration
+
+```javascript
+// config/multi-tenant.js
+module.exports = {
+  multiTenant: {
+    enabled: true,
+    isolation: 'database', // 'database' | 'schema' | 'row'
+    strategy: {
+      identification: 'subdomain', // 'subdomain' | 'header' | 'jwt'
+      headerName: 'X-Tenant-ID',
+      defaultTenant: 'default'
+    },
+    database: {
+      poolSize: 10,
+      idleTimeout: 30000,
+      connectionLimit: 100
+    },
+    cache: {
+      ttl: 3600,
+      checkPeriod: 600,
+      maxKeys: 10000
+    }
+  }
+};
+```
+
+## Security Hardening
+
+### Security Headers
+
+```javascript
+// middleware/security.js
+const helmet = require('helmet');
+
+module.exports = {
+  configure: (app) => {
+    app.use(helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "wss:", "https:"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      }
+    }));
+    
+    // Additional security middleware
+    app.use(require('./rate-limiter'));
+    app.use(require('./input-validation'));
+    app.use(require('./sql-injection-prevention'));
+  }
+};
+```
+
+### Encryption at Rest
+
+```yaml
+# encryption-config.yaml
+apiVersion: v1
+kind: EncryptionConfiguration
+resources:
+  - resources:
+    - secrets
+    - configmaps
+    providers:
+    - aescbc:
+        keys:
+        - name: key1
+          secret: <base64-encoded-secret>
+    - identity: {}
+```
+
+### Network Security
+
+```yaml
+# pod-security-policy.yaml
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: deepwikiopen-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: true
+```
+
+## Corporate Authentication Integration
+
+### LDAP Integration
+
+```javascript
+// auth/ldap-config.js
+const LdapAuth = require('ldapauth-fork');
+
+module.exports = {
+  ldap: new LdapAuth({
+    url: process.env.LDAP_URL || 'ldaps://ldap.company.com:636',
+    bindDN: process.env.LDAP_BIND_DN,
+    bindCredentials: process.env.LDAP_BIND_PASSWORD,
+    searchBase: process.env.LDAP_SEARCH_BASE || 'ou=users,dc=company,dc=com',
+    searchFilter: '(&(objectClass=user)(sAMAccountName={{username}}))',
+    searchAttributes: ['displayName', 'mail', 'memberOf', 'department'],
+    groupSearchBase: 'ou=groups,dc=company,dc=com',
+    groupSearchFilter: '(&(objectClass=group)(member={{dn}}))',
+    groupSearchAttributes: ['cn', 'description'],
+    cache: true,
+    cacheTime: 3600000, // 1 hour
+    tlsOptions: {
+      ca: [fs.readFileSync('./certs/company-ca.crt')]
+    }
+  }),
+  
+  mapUserRoles: (ldapUser) => {
+    const roles = [];
+    if (ldapUser.memberOf) {
+      const groups = Array.isArray(ldapUser.memberOf) 
+        ? ldapUser.memberOf 
+        : [ldapUser.memberOf];
+        
+      groups.forEach(group => {
+        if (group.includes('CN=DeepWiki-Admins')) roles.push('admin');
+        if (group.includes('CN=DeepWiki-Developers')) roles.push('developer');
+        if (group.includes('CN=DeepWiki-Users')) roles.push('viewer');
+      });
+    }
+    return roles.length > 0 ? roles : ['viewer'];
+  }
+};
+```
+
+### SAML Integration
+
+```javascript
+// auth/saml-config.js
+const saml = require('passport-saml');
+
+module.exports = {
+  strategy: new saml.Strategy({
+    callbackUrl: 'https://deepwiki.company.com/auth/saml/callback',
+    entryPoint: process.env.SAML_ENTRY_POINT,
+    issuer: 'deepwikiopen',
+    cert: fs.readFileSync('./certs/saml-cert.pem', 'utf-8'),
+    privateKey: fs.readFileSync('./certs/saml-key.pem', 'utf-8'),
+    identifierFormat: 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent',
+    wantAssertionsSigned: true,
+    signatureAlgorithm: 'sha256'
+  }, (profile, done) => {
+    return done(null, {
+      id: profile.nameID,
+      email: profile.email,
+      displayName: profile.displayName,
+      department: profile['http://schemas.company.com/claims/department'],
+      roles: profile['http://schemas.company.com/claims/roles']
+    });
+  })
+};
+```
+
+## Monitoring and Logging
+
+### Prometheus Metrics
+
+```javascript
+// monitoring/metrics.js
+const prometheus = require('prom-client');
+
+// Custom metrics
+const httpRequestDuration = new prometheus.Histogram({
+  name: 'deepwiki_http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
+});
+
+const activeUsers = new prometheus.Gauge({
+  name: 'deepwiki_active_users',
+  help: 'Number of active users',
+  labelNames: ['tenant', 'department']
+});
+
+const apiCallsTotal = new prometheus.Counter({
+  name: 'deepwiki_api_calls_total',
+  help: 'Total number of API calls',
+  labelNames: ['endpoint', 'method', 'status']
+});
+
+// Export metrics endpoint
+module.exports = {
+  endpoint: '/metrics',
+  register: prometheus.register,
+  metrics: {
+    httpRequestDuration,
+    activeUsers,
+    apiCallsTotal
+  }
+};
+```
+
+### ELK Stack Configuration
+
+```yaml
+# filebeat.yml
+filebeat.inputs:
+- type: container
+  paths:
+    - /var/lib/docker/containers/*/*.log
+  processors:
+    - add_kubernetes_metadata:
+        host: ${NODE_NAME}
+        matchers:
+        - logs_path:
+            logs_path: "/var/lib/docker/containers/"
+  multiline.pattern: '^\d{4}-\d{2}-\d{2}'
+  multiline.negate: true
+  multiline.match: after
+
+output.elasticsearch:
+  hosts: ['${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}']
+  username: ${ELASTICSEARCH_USERNAME}
+  password: ${ELASTICSEARCH_PASSWORD}
+  indices:
+    - index: "deepwiki-%{[agent.version]}-%{+yyyy.MM.dd}"
+      when.contains:
+        kubernetes.labels.app: "deepwikiopen"
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+```
+
+### Application Performance Monitoring
+
+```javascript
+// monitoring/apm.js
+const apm = require('elastic-apm-node');
+
+module.exports = {
+  init: () => {
+    apm.start({
+      serviceName: 'deepwikiopen',
+      secretToken: process.env.APM_SECRET_TOKEN,
+      serverUrl: process.env.APM_SERVER_URL,
+      environment: process.env.NODE_ENV,
+      captureBody: 'all',
+      captureHeaders: true,
+      transactionSampleRate: 0.1,
+      spanFramesMinDuration: '5ms',
+      usePathAsTransactionName: true,
+      ignoreUrls: ['/health', '/metrics'],
+      errorOnAbortedRequests: true,
+      captureErrorLogStackTraces: 'always',
+      logLevel: 'info'
+    });
+  }
+};
+```
+
+## High Availability Configuration
+
+### Database Clustering
+
+```yaml
+# postgres-ha.yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: deepwiki-postgres-cluster
+spec:
+  instances: 3
+  primaryUpdateStrategy: unsupervised
+  
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      maintenance_work_mem: "64MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+      random_page_cost: "1.1"
+      effective_io_concurrency: "200"
+      work_mem: "4MB"
+      min_wal_size: "1GB"
+      max_wal_size: "2GB"
+      
+  bootstrap:
+    initdb:
+      database: deepwiki
+      owner: deepwiki_user
+      secret:
+        name: deepwiki-db-secret
+        
+  monitoring:
+    enabled: true
+    customQueriesConfigMap:
+      - name: deepwiki-metrics
+        key: queries.yaml
+```
+
+### Redis Sentinel Configuration
+
+```yaml
+# redis-sentinel.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-sentinel-config
+data:
+  sentinel.conf: |
+    port 26379
+    bind 0.0.0.0
+    sentinel announce-ip ${HOSTNAME}.redis-sentinel
+    sentinel down-after-milliseconds mymaster 5000
+    sentinel parallel-syncs mymaster 1
+    sentinel failover-timeout mymaster 60000
+    sentinel auth-pass mymaster ${REDIS_PASSWORD}
+    sentinel monitor mymaster redis-master 6379 2
+```
+
+### Load Balancer Configuration
+
+```yaml
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepwikiopen-lb
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  selector:
+    app: deepwikiopen
+  ports:
+  - port: 443
+    targetPort: 8080
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+```
+
+## Backup and Disaster Recovery
+
+### Automated Backup Strategy
+
+```yaml
+# velero-backup.yaml
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: deepwiki-daily-backup
+spec:
+  schedule: "0 2 * * *"
+  template:
+    ttl: 720h0m0s
+    includedNamespaces:
+    - deepwikiopen
+    includedResources:
+    - '*'
+    storageLocation: deepwiki-backup-location
+    volumeSnapshotLocations:
+    - deepwiki-snapshots
+    hooks:
+      resources:
+      - name: database-backup
+        includedNamespaces:
+        - deepwikiopen
+        labelSelector:
+          matchLabels:
+            app: postgres
+        pre:
+        - exec:
+            container: postgres
+            command:
+            - /bin/bash
+            - -c
+            - pg_dump -U $POSTGRES_USER -d $POSTGRES_DB > /backup/dump.sql
+```
+
+### Disaster Recovery Plan
+
+```javascript
+// dr/recovery-plan.js
+class DisasterRecoveryPlan {
+  constructor(config) {
+    this.rto = config.rto || '4 hours'; // Recovery Time Objective
+    this.rpo = config.rpo || '1 hour';  // Recovery Point Objective
+  }
+  
+  async executeRecovery(disaster) {
+    const steps = [
+      this.assessDamage(disaster),
+      this.activateSecondaryRegion(),
+      this.restoreFromBackup(),
+      this.validateDataIntegrity(),
+      this.switchTraffic(),
+      this.notifyStakeholders()
+    ];
+    
+    for (const step of steps) {
+      await step;
+      await this.logRecoveryStep(step);
+    }
+  }
+  
+  async testDRPlan() {
+    // Automated DR testing
+    const scenarios = [
+      'database-failure',
+      'region-outage',
+      'data-corruption',
+      'security-breach'
+    ];
+    
+    for (const scenario of scenarios) {
+      await this.simulateDisaster(scenario);
+      await this.measureRecoveryMetrics();
+    }
+  }
+}
+```
+
+### Cross-Region Replication
+
+```yaml
+# cross-region-sync.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cross-region-sync
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: sync
+            image: company.registry.io/deepwiki-sync:latest
+            env:
+            - name: SOURCE_REGION
+              value: "us-east-1"
+            - name: TARGET_REGION
+              value: "us-west-2"
+            - name: SYNC_MODE
+              value: "incremental"
+            command:
+            - /bin/sh
+            - -c
+            - |
+              rsync -avz --delete \
+                --exclude='temp/*' \
+                --exclude='cache/*' \
+                /data/source/ /data/target/
+```
+
+## Compliance Considerations
+
+### GDPR Compliance
+
+```javascript
+// compliance/gdpr.js
+class GDPRCompliance {
+  constructor() {
+    this.consentManager = new ConsentManager();
+    this.dataProcessor = new PersonalDataProcessor();
+  }
+  
+  async handleDataRequest(userId, requestType) {
+    switch (requestType) {
+      case 'access':
+        return await this.exportUserData(userId);
+      case 'rectification':
+        return await this.correctUserData(userId);
+      case 'erasure':
+        return await this.deleteUserData(userId);
+      case 'portability':
+        return await this.exportPortableData(userId);
+      default:
+        throw new Error('Invalid request type');
+    }
+  }
+  
+  async anonymizeData(data) {
+    // Implement data anonymization
+    const anonymized = {
+      ...data,
+      email: this.hashEmail(data.email),
+      name: 'ANONYMIZED',
+      ipAddress: this.anonymizeIP(data.ipAddress)
+    };
+    return anonymized;
+  }
+}
+```
+
+### Audit Logging
+
+```javascript
+// compliance/audit-logger.js
+class AuditLogger {
+  constructor(config) {
+    this.storage = config.storage;
+    this.encryption = config.encryption;
+  }
+  
+  async log(event) {
+    const auditEntry = {
+      timestamp: new Date().toISOString(),
+      userId: event.userId,
+      action: event.action,
+      resource: event.resource,
+      result: event.result,
+      ipAddress: event.ipAddress,
+      userAgent: event.userAgent,
+      department: event.department,
+      metadata: event.metadata
+    };
+    
+    // Encrypt sensitive data
+    const encrypted = await this.encryption.encrypt(auditEntry);
+    
+    // Store with integrity check
+    await this.storage.store({
+      data: encrypted,
+      hash: this.calculateHash(encrypted),
+      signature: await this.sign(encrypted)
+    });
+  }
+  
+  async generateComplianceReport(startDate, endDate) {
+    const entries = await this.storage.query({
+      startDate,
+      endDate
+    });
+    
+    return {
+      summary: this.summarizeActivity(entries),
+      accessPatterns: this.analyzeAccess(entries),
+      anomalies: this.detectAnomalies(entries),
+      privilegedActions: this.filterPrivileged(entries)
+    };
+  }
+}
+```
+
+### Data Retention Policies
+
+```yaml
+# data-retention-policy.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-retention-policy
+data:
+  policy.json: |
+    {
+      "policies": {
+        "user-data": {
+          "retentionDays": 2555,
+          "archiveAfterDays": 365,
+          "deletePersonalInfoAfterDays": 1095
+        },
+        "audit-logs": {
+          "retentionDays": 2555,
+          "immutable": true,
+          "compressionAfterDays": 90
+        },
+        "application-logs": {
+          "retentionDays": 90,
+          "compressionAfterDays": 7
+        },
+        "metrics": {
+          "retentionDays": 365,
+          "aggregationRules": {
+            "1m": 24,
+            "5m": 168,
+            "1h": 730
+          }
+        }
+      }
+    }
+```
+
+## Security Best Practices Summary
+
+1. **Zero Trust Architecture**: Never trust, always verify
+2. **Principle of Least Privilege**: Grant minimum required permissions
+3. **Defense in Depth**: Multiple layers of security controls
+4. **Regular Security Audits**: Quarterly penetration testing
+5. **Incident Response Plan**: Documented and tested procedures
+6. **Encryption Everywhere**: In transit and at rest
+7. **Continuous Monitoring**: Real-time threat detection
+8. **Patch Management**: Automated security updates
+9. **Access Reviews**: Regular audit of user permissions
+10. **Security Training**: Regular employee security awareness
+
+## Deployment Checklist
+
+- [ ] Configure private API channels
+- [ ] Set up custom base URLs and proxies
+- [ ] Implement authentication and authorization
+- [ ] Deploy multi-user infrastructure
+- [ ] Apply security hardening measures
+- [ ] Integrate corporate authentication
+- [ ] Set up monitoring and logging
+- [ ] Configure high availability
+- [ ] Implement backup strategy
+- [ ] Ensure compliance requirements
+- [ ] Test disaster recovery plan
+- [ ] Conduct security audit
+- [ ] Document operational procedures
+- [ ] Train operations team
+- [ ] Schedule regular reviews
+
+## Support and Resources
+
+- **Enterprise Support Portal**: https://support.deepwikiopen.enterprise
+- **Security Updates**: https://security.deepwikiopen.enterprise
+- **Compliance Documentation**: https://compliance.deepwikiopen.enterprise
+- **Operations Runbook**: https://runbook.deepwikiopen.enterprise
+
+---
+
+For additional enterprise features or custom requirements, please contact your DeepWikiOpen enterprise support team.

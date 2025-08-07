@@ -1,0 +1,691 @@
+---
+title: "Internationalization (i18n) Guide"
+description: "Comprehensive guide to DeepWiki's multi-language support, language detection, and global configuration options"
+icon: "globe"
+---
+
+<Info>
+  DeepWiki offers robust internationalization support with built-in language detection, 
+  comprehensive translation coverage, and intelligent AI model responses in your preferred language.
+</Info>
+
+## Overview
+
+DeepWiki provides comprehensive internationalization (i18n) support designed for global teams and diverse repositories. The platform automatically detects languages, provides localized interfaces, and generates documentation that respects cultural and linguistic preferences.
+
+### Key Features
+
+- **10+ Supported Languages**: Native support for major world languages
+- **Automatic Language Detection**: Smart detection from browser settings and repository content
+- **Contextual AI Responses**: AI models understand and respond in the appropriate language
+- **Cultural Adaptation**: Documentation generated with cultural considerations
+- **Multi-language Repository Handling**: Support for repositories containing multiple languages
+
+## Supported Languages
+
+DeepWiki currently supports the following languages:
+
+<CardGroup cols={2}>
+  <Card title="English" icon="flag-usa">
+    **Code**: `en`
+    Default language with full feature support
+  </Card>
+  <Card title="Chinese (Simplified)" icon="flag">
+    **Code**: `zh`
+    中文 - Full localization support
+  </Card>
+  <Card title="Chinese (Traditional)" icon="flag">
+    **Code**: `zh-tw`
+    繁體中文 - Traditional Chinese variant
+  </Card>
+  <Card title="Japanese" icon="flag">
+    **Code**: `ja`
+    日本語 - Complete Japanese localization
+  </Card>
+  <Card title="Korean" icon="flag">
+    **Code**: `kr`
+    한국어 - Korean language support
+  </Card>
+  <Card title="Spanish" icon="flag">
+    **Code**: `es`
+    Español - Spanish localization
+  </Card>
+  <Card title="Vietnamese" icon="flag">
+    **Code**: `vi`
+    Tiếng Việt - Vietnamese support
+  </Card>
+  <Card title="Portuguese (Brazilian)" icon="flag">
+    **Code**: `pt-br`
+    Português Brasileiro - Brazilian variant
+  </Card>
+  <Card title="French" icon="flag">
+    **Code**: `fr`
+    Français - French localization
+  </Card>
+  <Card title="Russian" icon="flag">
+    **Code**: `ru`
+    Русский - Russian language support
+  </Card>
+</CardGroup>
+
+## Language Detection
+
+### Automatic Browser Detection
+
+DeepWiki automatically detects your preferred language using a sophisticated algorithm:
+
+```typescript
+// Language detection priority
+1. Stored user preference (localStorage)
+2. Browser language settings (navigator.language)
+3. Repository primary language
+4. System default (English)
+```
+
+<Tabs>
+  <Tab title="Browser Detection">
+    The system examines `navigator.language` and extracts the language code:
+    
+    ```javascript
+    // Examples of browser language detection
+    'en-US' → 'en' (English)
+    'ja-JP' → 'ja' (Japanese)
+    'zh-CN' → 'zh' (Simplified Chinese)
+    'zh-TW' → 'zh-tw' (Traditional Chinese)
+    'es-ES' → 'es' (Spanish)
+    ```
+  </Tab>
+  
+  <Tab title="Fallback Logic">
+    When a language isn't supported, DeepWiki uses intelligent fallbacks:
+    
+    ```javascript
+    // Fallback examples
+    'pt-PT' → 'pt-br' (Portuguese variants)
+    'zh-HK' → 'zh-tw' (Traditional Chinese variants)
+    'en-GB' → 'en' (English variants)
+    'fr-CA' → 'fr' (French variants)
+    ```
+  </Tab>
+</Tabs>
+
+### Repository Language Detection
+
+For documentation generation, DeepWiki analyzes repository content:
+
+<Steps>
+  <Step title="Primary Language Analysis">
+    Detects the main programming language used in the repository
+  </Step>
+  <Step title="Documentation Language">
+    Identifies existing documentation language (README, comments)
+  </Step>
+  <Step title="Cultural Context">
+    Considers regional coding patterns and naming conventions
+  </Step>
+</Steps>
+
+## UI Language Configuration
+
+### Manual Language Selection
+
+Users can manually override automatic detection through the language selector:
+
+<CodeGroup>
+```tsx Language Selector Component
+import { useLanguage } from '@/contexts/LanguageContext';
+
+function LanguageSelector() {
+  const { language, setLanguage, supportedLanguages } = useLanguage();
+
+  return (
+    <select 
+      value={language} 
+      onChange={(e) => setLanguage(e.target.value)}
+      className="px-3 py-2 border rounded-md"
+    >
+      {Object.entries(supportedLanguages).map(([code, name]) => (
+        <option key={code} value={code}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+```javascript Storage Persistence
+// Language preference is automatically stored
+localStorage.setItem('language', 'ja'); // Persists across sessions
+document.documentElement.lang = 'ja';   // Updates HTML lang attribute
+```
+</CodeGroup>
+
+### Language Context Integration
+
+<Tabs>
+  <Tab title="React Context">
+    ```tsx
+    import { useLanguage } from '@/contexts/LanguageContext';
+
+    function MyComponent() {
+      const { messages, language } = useLanguage();
+      
+      return (
+        <div>
+          <h1>{messages.common.appName}</h1>
+          <p>Current language: {language}</p>
+        </div>
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Server-Side">
+    ```typescript
+    import { getRequestConfig } from 'next-intl/server';
+
+    export default getRequestConfig(async ({ locale }) => {
+      return {
+        locale: locale,
+        messages: (await import(`./messages/${locale}.json`)).default
+      };
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## API Language Configuration
+
+### Request Headers
+
+Configure language preferences through API requests:
+
+```bash
+curl -X POST https://api.deepwiki.ai/generate-wiki \
+  -H "Accept-Language: ja,en;q=0.9" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "owner/repo",
+    "language": "ja",
+    "wiki_language": "ja"
+  }'
+```
+
+### Configuration Files
+
+Set default languages in your configuration:
+
+<CodeGroup>
+```json lang.json
+{
+  "supported_languages": {
+    "en": "English",
+    "ja": "Japanese (日本語)",
+    "zh": "Mandarin Chinese (中文)",
+    "zh-tw": "Traditional Chinese (繁體中文)",
+    "es": "Spanish (Español)",
+    "kr": "Korean (한국어)",
+    "vi": "Vietnamese (Tiếng Việt)",
+    "pt-br": "Brazilian Portuguese (Português Brasileiro)",
+    "fr": "Français (French)",
+    "ru": "Русский (Russian)"
+  },
+  "default": "en"
+}
+```
+
+```yaml Environment Variables
+# .env.local
+DEEPWIKI_DEFAULT_LANGUAGE=en
+DEEPWIKI_UI_LANGUAGE=auto
+DEEPWIKI_WIKI_LANGUAGE=auto
+DEEPWIKI_AI_LANGUAGE_CONTEXT=true
+```
+</CodeGroup>
+
+## AI Model Language Context
+
+### Language-Aware Generation
+
+DeepWiki's AI models understand linguistic context and generate appropriate documentation:
+
+<Tabs>
+  <Tab title="English Context">
+    ```markdown
+    # User Authentication System
+
+    This module provides secure user authentication with JWT tokens.
+
+    ## Features
+    - Password hashing with bcrypt
+    - JWT token generation and validation
+    - Role-based access control (RBAC)
+    ```
+  </Tab>
+  
+  <Tab title="Japanese Context">
+    ```markdown
+    # ユーザー認証システム
+
+    このモジュールはJWTトークンを使用した安全なユーザー認証を提供します。
+
+    ## 機能
+    - bcryptによるパスワードハッシュ化
+    - JWTトークンの生成と検証
+    - ロールベースアクセス制御（RBAC）
+    ```
+  </Tab>
+  
+  <Tab title="Chinese Context">
+    ```markdown
+    # 用户身份验证系统
+
+    该模块提供基于JWT令牌的安全用户身份验证。
+
+    ## 功能特性
+    - 使用bcrypt进行密码哈希加密
+    - JWT令牌生成和验证
+    - 基于角色的访问控制（RBAC）
+    ```
+  </Tab>
+</Tabs>
+
+### Model Configuration
+
+Configure AI models for multilingual responses:
+
+```json
+{
+  "generator": {
+    "language_context": true,
+    "cultural_adaptation": true,
+    "preserve_technical_terms": true,
+    "localization_depth": "comprehensive"
+  },
+  "embedder": {
+    "multilingual_embeddings": true,
+    "cross_language_similarity": true
+  }
+}
+```
+
+## Multi-Language Repository Handling
+
+### Repository Analysis
+
+DeepWiki intelligently handles repositories with multiple languages:
+
+<Steps>
+  <Step title="Primary Language Detection">
+    Identifies the main programming language and documentation language
+  </Step>
+  <Step title="Secondary Language Support">
+    Recognizes additional languages and their contexts
+  </Step>
+  <Step title="Mixed Content Handling">
+    Appropriately processes files with mixed language content
+  </Step>
+</Steps>
+
+### Documentation Strategy
+
+<CardGroup cols={2}>
+  <Card title="Unified Approach" icon="merge">
+    Generate single documentation in the dominant language with technical terms preserved
+  </Card>
+  <Card title="Parallel Documentation" icon="copy">
+    Create separate documentation versions for major languages in the repository
+  </Card>
+</CardGroup>
+
+### Code Examples
+
+```typescript
+// English-dominant repository with Japanese comments
+class UserService {
+  /**
+   * ユーザーを作成します
+   * Creates a new user account
+   */
+  async createUser(userData: UserData): Promise<User> {
+    // データバリデーション (Data validation)
+    const validatedData = this.validateUserData(userData);
+    
+    // ユーザー保存 (Save user)
+    return await this.userRepository.save(validatedData);
+  }
+}
+```
+
+Generated documentation preserves both contexts:
+
+```markdown
+## UserService クラス
+
+`UserService` class provides comprehensive user management functionality with bilingual support.
+
+### createUser メソッド
+
+Creates a new user account with data validation.
+
+**Parameters:**
+- `userData: UserData` - User information to be processed
+
+**Returns:** 
+- `Promise<User>` - Created user object
+
+**Implementation Notes:**
+- データバリデーション (Data validation) ensures input integrity
+- ユーザー保存 (User saving) persists data to repository
+```
+
+## Cultural Considerations
+
+### Regional Preferences
+
+DeepWiki adapts to regional documentation preferences:
+
+<Tabs>
+  <Tab title="Western Style">
+    ```markdown
+    # Quick Start Guide
+
+    Get started with DeepWiki in 3 easy steps:
+
+    1. Clone the repository
+    2. Install dependencies  
+    3. Run the application
+
+    ## Prerequisites
+    - Node.js 18+
+    - Git
+    ```
+  </Tab>
+  
+  <Tab title="Asian Style">
+    ```markdown
+    # クイックスタートガイド
+
+    DeepWikiを3つの簡単なステップで始めましょう：
+
+    【手順1】リポジトリをクローンする
+    【手順2】依存関係をインストールする
+    【手順3】アプリケーションを実行する
+
+    ## 前提条件
+    - Node.js 18以上
+    - Git
+    ```
+  </Tab>
+</Tabs>
+
+### Technical Term Handling
+
+<CardGroup cols={2}>
+  <Card title="Preserve Original" icon="lock">
+    Keep technical terms in original language
+    
+    **Example**: `useState` remains `useState` in all languages
+  </Card>
+  <Card title="Add Explanations" icon="info">
+    Provide local explanations for complex terms
+    
+    **Example**: "JWT (JSON Web Token / JSONウェブトークン)"
+  </Card>
+</CardGroup>
+
+## Best Practices for International Teams
+
+### 1. Language Strategy
+
+<Steps>
+  <Step title="Primary Language Selection">
+    Choose a primary language for technical documentation (usually English)
+  </Step>
+  <Step title="Localization Scope">
+    Decide which content needs full localization vs. technical preservation
+  </Step>
+  <Step title="Consistency Maintenance">
+    Establish terminology guidelines for mixed-language projects
+  </Step>
+</Steps>
+
+### 2. Repository Organization
+
+```
+docs/
+├── en/           # English documentation
+├── ja/           # Japanese documentation  
+├── zh/           # Chinese documentation
+└── shared/       # Language-neutral resources
+    ├── diagrams/
+    └── code-samples/
+```
+
+### 3. Development Guidelines
+
+<Tabs>
+  <Tab title="Code Comments">
+    ```typescript
+    // Use primary language for code comments
+    // 主要言語でコードコメントを記述
+    
+    /**
+     * User authentication service
+     * ユーザー認証サービス
+     * @param credentials - Login credentials / ログイン資格情報
+     */
+    ```
+  </Tab>
+  
+  <Tab title="API Documentation">
+    ```yaml
+    # Generate API docs in multiple languages
+    openapi: 3.0.0
+    info:
+      title: 
+        en: "DeepWiki API"
+        ja: "DeepWiki API"
+        zh: "DeepWiki API"
+      description:
+        en: "AI-powered documentation generation API"
+        ja: "AI駆動ドキュメント生成API"
+        zh: "AI驱动的文档生成API"
+    ```
+  </Tab>
+</Tabs>
+
+### 4. Quality Assurance
+
+<CardGroup cols={2}>
+  <Card title="Language Review" icon="eye">
+    Have native speakers review translated documentation for accuracy and cultural appropriateness
+  </Card>
+  <Card title="Technical Accuracy" icon="check">
+    Ensure technical terms and concepts remain accurate across all languages
+  </Card>
+  <Card title="Consistency Checks" icon="balance-scale">
+    Use automated tools to check consistency between language versions
+  </Card>
+  <Card title="User Testing" icon="users">
+    Test documentation with users from different linguistic backgrounds
+  </Card>
+</CardGroup>
+
+## Advanced Configuration
+
+### Custom Language Support
+
+Extend DeepWiki with additional languages:
+
+<CodeGroup>
+```json Add New Language
+{
+  "supported_languages": {
+    "de": "Deutsch (German)",
+    "it": "Italiano (Italian)",
+    "nl": "Nederlands (Dutch)"
+  }
+}
+```
+
+```javascript Message Files
+// messages/de.json
+{
+  "common": {
+    "appName": "DeepWiki-Open",
+    "generateWiki": "Wiki Generieren",
+    "loading": "Laden..."
+  }
+}
+```
+</CodeGroup>
+
+### Language-Specific Features
+
+```json
+{
+  "language_features": {
+    "ja": {
+      "ruby_annotations": true,
+      "vertical_text_support": true
+    },
+    "zh": {
+      "traditional_characters": true,
+      "pinyin_support": true
+    },
+    "ar": {
+      "rtl_support": true,
+      "arabic_numerals": true
+    }
+  }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Language not detecting correctly">
+    **Solution**: Check browser language settings and clear localStorage:
+    
+    ```javascript
+    localStorage.removeItem('language');
+    location.reload();
+    ```
+  </Accordion>
+  
+  <Accordion title="Mixed language in generated docs">
+    **Cause**: Repository contains multiple languages without clear primary language.
+    
+    **Solution**: Explicitly set the wiki language in generation settings.
+  </Accordion>
+  
+  <Accordion title="AI responses in wrong language">
+    **Check**: 
+    - API language header configuration
+    - Model language context settings
+    - Repository language detection accuracy
+  </Accordion>
+  
+  <Accordion title="Missing translations">
+    **Solution**: Add missing keys to message files:
+    
+    ```json
+    // messages/[lang].json
+    {
+      "newFeature": {
+        "title": "Translated Title",
+        "description": "Translated Description"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Debug Mode
+
+Enable language debugging for troubleshooting:
+
+```javascript
+// Enable in browser console
+localStorage.setItem('deepwiki_debug_i18n', 'true');
+
+// View language detection logs
+console.log('Browser language:', navigator.language);
+console.log('Detected language:', detectedLanguage);
+console.log('Available languages:', supportedLanguages);
+```
+
+## Migration Guide
+
+### Updating Language Support
+
+When upgrading DeepWiki versions:
+
+<Steps>
+  <Step title="Backup Current Settings">
+    ```bash
+    cp api/config/lang.json api/config/lang.json.backup
+    ```
+  </Step>
+  <Step title="Update Configuration">
+    Merge new language options with existing preferences
+  </Step>
+  <Step title="Update Message Files">
+    Add new translation keys to all language files
+  </Step>
+  <Step title="Test Language Switching">
+    Verify all languages work correctly after update
+  </Step>
+</Steps>
+
+<Warning>
+  Always test language functionality after updates, as new features may require additional translations.
+</Warning>
+
+## API Reference
+
+### Language Configuration Endpoints
+
+```bash
+# Get supported languages
+GET /api/lang/config
+
+# Set user language preference  
+POST /api/user/language
+{
+  "language": "ja",
+  "persist": true
+}
+
+# Generate wiki with specific language
+POST /api/wiki/generate
+{
+  "repo_url": "owner/repo",
+  "language": "zh",
+  "wiki_language": "zh"
+}
+```
+
+### Language Detection API
+
+```bash
+# Detect repository language
+POST /api/detect/language
+{
+  "repo_url": "owner/repo"
+}
+
+# Response
+{
+  "primary_language": "JavaScript",
+  "documentation_language": "en",
+  "suggested_wiki_language": "en",
+  "confidence": 0.95
+}
+```
+
+DeepWiki's internationalization system ensures that teams around the world can generate high-quality documentation in their preferred languages while maintaining technical accuracy and cultural appropriateness.

@@ -1,0 +1,610 @@
+---
+title: "Security Guidelines"
+description: "Comprehensive security guidelines for deploying and operating DeepWiki-Open safely"
+---
+
+# Security Guidelines
+
+This document provides comprehensive security guidelines for deploying and operating DeepWiki-Open in production environments. Follow these best practices to ensure your deployment is secure and protects sensitive data.
+
+## Overview
+
+DeepWiki-Open processes source code repositories and requires access to various APIs and services. This guide covers all security aspects from API key management to network security and vulnerability handling.
+
+## API Key and Token Management
+
+### Secure Storage
+
+<Steps>
+<Step title="Use Environment Variables">
+Never hardcode API keys in your source code. Always use environment variables:
+
+```bash
+# .env file (never commit this to version control)
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+AZURE_OPENAI_API_KEY=your_azure_api_key
+```
+
+<Warning>
+Add `.env` to your `.gitignore` file immediately after creation
+</Warning>
+</Step>
+
+<Step title="Use Secret Management Systems">
+For production deployments, use dedicated secret management:
+
+```bash
+# AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name deepwiki/api-keys \
+  --secret-string file://.env
+
+# Kubernetes Secrets
+kubectl create secret generic deepwiki-secrets \
+  --from-env-file=.env
+
+# HashiCorp Vault
+vault kv put secret/deepwiki/api-keys @.env
+```
+</Step>
+
+<Step title="Implement Key Rotation">
+Regularly rotate API keys and implement automated rotation:
+
+```python
+# Example rotation script
+import os
+import time
+from datetime import datetime, timedelta
+
+def rotate_api_keys():
+    # Check key age
+    key_age = datetime.now() - datetime.fromtimestamp(
+        os.path.getmtime('.env')
+    )
+    
+    if key_age > timedelta(days=90):
+        # Trigger rotation process
+        print("API keys need rotation")
+```
+</Step>
+</Steps>
+
+### Access Token Security
+
+<Tabs>
+<Tab title="GitHub Tokens">
+```bash
+# Minimum required permissions for GitHub tokens:
+- repo (for private repositories)
+- read:org (for organization repositories)
+- read:user (for user information)
+
+# Create fine-grained personal access tokens when possible
+# Set expiration dates (maximum 90 days recommended)
+```
+</Tab>
+
+<Tab title="GitLab Tokens">
+```bash
+# Required scopes for GitLab tokens:
+- read_api (for API access)
+- read_repository (for repository access)
+- read_user (for user information)
+
+# Use project or group tokens instead of personal tokens
+# Enable token expiration
+```
+</Tab>
+
+<Tab title="Bitbucket Tokens">
+```bash
+# Required permissions for Bitbucket:
+- repository:read
+- account:read
+- team:read (for team repositories)
+
+# Use app passwords with minimal scopes
+# Regularly audit token usage
+```
+</Tab>
+</Tabs>
+
+## Authentication and Authorization
+
+### Wiki Authentication
+
+DeepWiki-Open supports optional authentication for the wiki interface:
+
+```python
+# Enable authentication in environment variables
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=your_secure_auth_code
+
+# The auth code should be:
+# - At least 20 characters long
+# - Randomly generated
+# - Changed regularly
+```
+
+<CodeGroup>
+```python title="Generate Secure Auth Code"
+import secrets
+import string
+
+def generate_auth_code(length=32):
+    alphabet = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+# Generate a secure code
+auth_code = generate_auth_code()
+print(f"DEEPWIKI_AUTH_CODE={auth_code}")
+```
+
+```bash title="Using OpenSSL"
+# Generate with OpenSSL
+openssl rand -base64 32
+
+# Generate with /dev/urandom
+head -c 32 /dev/urandom | base64
+```
+</CodeGroup>
+
+### Role-Based Access Control (RBAC)
+
+Implement RBAC for multi-user deployments:
+
+```yaml
+# Example RBAC configuration
+roles:
+  admin:
+    permissions:
+      - wiki:create
+      - wiki:read
+      - wiki:update
+      - wiki:delete
+      - config:modify
+  
+  developer:
+    permissions:
+      - wiki:create
+      - wiki:read
+      - wiki:update
+  
+  viewer:
+    permissions:
+      - wiki:read
+```
+
+## Data Privacy and Protection
+
+### Repository Data Handling
+
+<Accordion>
+<AccordionItem title="Data Collection">
+DeepWiki-Open collects the following data from repositories:
+- Source code files (filtered by configuration)
+- Directory structure
+- File metadata (size, last modified)
+- Git history (if enabled)
+
+**Never collected:**
+- Credentials or secrets
+- Binary files
+- Files matching exclusion patterns
+</AccordionItem>
+
+<AccordionItem title="Data Storage">
+Repository data is stored in:
+- Local cache directory (`./cache/`)
+- Embedded vector database
+- Session memory (cleared on restart)
+
+**Security measures:**
+- Cache files are created with restricted permissions (0600)
+- Temporary files are securely deleted after processing
+- No permanent storage of sensitive data
+</AccordionItem>
+
+<AccordionItem title="Data Transmission">
+All data transmission should be encrypted:
+- Use HTTPS for all API communications
+- Enable TLS for database connections
+- Encrypt WebSocket connections
+
+```nginx
+# Nginx SSL configuration
+server {
+    listen 443 ssl http2;
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+}
+```
+</AccordionItem>
+</Accordion>
+
+### GDPR Compliance
+
+For GDPR compliance, implement:
+
+1. **Data Minimization**: Only process necessary files
+2. **Right to Erasure**: Provide cache clearing endpoints
+3. **Data Portability**: Export processed wiki data
+4. **Privacy by Design**: Default to secure configurations
+
+```python
+# Example GDPR compliance endpoints
+@app.delete("/api/user-data/{user_id}")
+async def delete_user_data(user_id: str):
+    """Implement right to erasure"""
+    # Clear user's cached data
+    # Remove from vector database
+    # Delete processing history
+    
+@app.get("/api/user-data/{user_id}/export")
+async def export_user_data(user_id: str):
+    """Implement data portability"""
+    # Export all user-related data
+```
+
+## Network Security
+
+### Firewall Configuration
+
+<CodeGroup>
+```bash title="UFW (Ubuntu)"
+# Allow only necessary ports
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# Frontend
+sudo ufw allow 3000/tcp
+
+# Backend API
+sudo ufw allow 8001/tcp
+
+# SSH (if needed)
+sudo ufw allow 22/tcp
+
+# Enable firewall
+sudo ufw enable
+```
+
+```bash title="iptables"
+# Basic iptables rules
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp --dport 3000 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8001 -j ACCEPT
+iptables -A INPUT -j DROP
+```
+
+```bash title="Docker Compose"
+# Restrict container ports
+services:
+  frontend:
+    ports:
+      - "127.0.0.1:3000:3000"  # Local only
+  
+  backend:
+    ports:
+      - "127.0.0.1:8001:8001"  # Local only
+```
+</CodeGroup>
+
+### Reverse Proxy Security
+
+Use a reverse proxy for additional security:
+
+```nginx
+# Nginx security headers
+server {
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';" always;
+    
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req zone=api burst=20 nodelay;
+    
+    # Proxy settings
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+    }
+}
+```
+
+## Private Repository Security
+
+### Access Control
+
+<Warning>
+Private repository access requires careful security consideration
+</Warning>
+
+<Steps>
+<Step title="Use Minimal Permissions">
+Create tokens with only necessary permissions:
+- Read-only access
+- Specific repository scope
+- Time-limited tokens
+</Step>
+
+<Step title="Implement Token Validation">
+```python
+def validate_repository_access(token: str, repo: str) -> bool:
+    """Validate token has access to repository"""
+    try:
+        # Attempt to access repository
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}",
+            headers={"Authorization": f"token {token}"}
+        )
+        return response.status_code == 200
+    except:
+        return False
+```
+</Step>
+
+<Step title="Audit Access Logs">
+Maintain detailed logs of private repository access:
+```python
+import logging
+from datetime import datetime
+
+def log_repository_access(user: str, repo: str, action: str):
+    logging.info({
+        "timestamp": datetime.utcnow().isoformat(),
+        "user": user,
+        "repository": repo,
+        "action": action,
+        "ip_address": request.remote_addr
+    })
+```
+</Step>
+</Steps>
+
+### Data Isolation
+
+Ensure private repository data is isolated:
+
+```python
+# Example data isolation
+class RepositoryCache:
+    def get_cache_path(self, repo: str, user: str) -> Path:
+        """Generate isolated cache path per user/repo"""
+        # Hash user ID to prevent directory traversal
+        user_hash = hashlib.sha256(user.encode()).hexdigest()[:12]
+        repo_hash = hashlib.sha256(repo.encode()).hexdigest()[:12]
+        
+        return Path(f"./cache/{user_hash}/{repo_hash}/")
+```
+
+## Vulnerability Management
+
+### Security Scanning
+
+<Tabs>
+<Tab title="Dependencies">
+```bash
+# Python dependencies
+pip install safety
+safety check
+
+# JavaScript dependencies
+npm audit
+npm audit fix
+
+# Docker images
+docker scan deepwiki-open:latest
+```
+</Tab>
+
+<Tab title="Code Analysis">
+```bash
+# Python security analysis
+pip install bandit
+bandit -r api/
+
+# JavaScript security analysis
+npm install -g eslint-plugin-security
+eslint --ext .js,.jsx,.ts,.tsx src/
+
+# SAST scanning
+semgrep --config=auto .
+```
+</Tab>
+
+<Tab title="Container Security">
+```dockerfile
+# Use specific versions, not latest
+FROM python:3.11-slim
+
+# Run as non-root user
+RUN useradd -m -u 1000 deepwiki
+USER deepwiki
+
+# Use multi-stage builds
+FROM node:18-alpine AS builder
+# Build stage...
+
+FROM node:18-alpine
+# Copy only necessary files
+```
+</Tab>
+</Tabs>
+
+### Vulnerability Reporting
+
+<Note>
+Found a security vulnerability? Please report it responsibly.
+</Note>
+
+#### Reporting Process
+
+1. **Do NOT** create public GitHub issues for security vulnerabilities
+2. Email security details to: security@deepwiki-open.org
+3. Include:
+   - Vulnerability description
+   - Steps to reproduce
+   - Potential impact
+   - Suggested fixes (if any)
+
+#### Response Timeline
+
+- **24 hours**: Initial acknowledgment
+- **72 hours**: Vulnerability assessment
+- **7 days**: Fix development and testing
+- **14 days**: Patch release and disclosure
+
+### Security Headers Checklist
+
+Ensure all security headers are properly configured:
+
+<Check>
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+</Check>
+
+<Check>
+X-Content-Type-Options: nosniff
+</Check>
+
+<Check>
+X-Frame-Options: SAMEORIGIN
+</Check>
+
+<Check>
+X-XSS-Protection: 1; mode=block
+</Check>
+
+<Check>
+Content-Security-Policy: default-src 'self'
+</Check>
+
+<Check>
+Referrer-Policy: strict-origin-when-cross-origin
+</Check>
+
+## Security Updates and Maintenance
+
+### Update Schedule
+
+<Timeline>
+<TimelineItem title="Daily">
+- Monitor security advisories
+- Review access logs
+- Check for anomalies
+</TimelineItem>
+
+<TimelineItem title="Weekly">
+- Run dependency updates
+- Perform security scans
+- Review authentication logs
+</TimelineItem>
+
+<TimelineItem title="Monthly">
+- Rotate API keys
+- Update base images
+- Security audit
+</TimelineItem>
+
+<TimelineItem title="Quarterly">
+- Penetration testing
+- Full security review
+- Update security policies
+</TimelineItem>
+</Timeline>
+
+### Automated Security Updates
+
+```yaml
+# GitHub Actions for automated updates
+name: Security Updates
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Weekly on Monday
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Update Python dependencies
+        run: |
+          pip install pip-audit
+          pip-audit --fix
+      
+      - name: Update Node dependencies
+        run: |
+          npm audit fix
+          npm update
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: Automated Security Updates
+          body: Automated dependency updates
+          branch: automated-security-updates
+```
+
+## Security Checklist
+
+Before deploying to production, ensure:
+
+<Check>
+All API keys are stored in environment variables or secret management systems
+</Check>
+
+<Check>
+HTTPS is enabled for all endpoints
+</Check>
+
+<Check>
+Authentication is configured for sensitive operations
+</Check>
+
+<Check>
+Rate limiting is implemented
+</Check>
+
+<Check>
+Security headers are properly configured
+</Check>
+
+<Check>
+Logging and monitoring are enabled
+</Check>
+
+<Check>
+Regular backups are configured
+</Check>
+
+<Check>
+Incident response plan is documented
+</Check>
+
+<Check>
+Security scanning is automated
+</Check>
+
+<Check>
+Access controls are properly configured
+</Check>
+
+## Additional Resources
+
+- [OWASP Security Guidelines](https://owasp.org/)
+- [CIS Security Benchmarks](https://www.cisecurity.org/)
+- [NIST Cybersecurity Framework](https://www.nist.gov/cyberframework)
+- [DeepWiki Security Updates](https://github.com/AsyncFuncAI/deepwiki-open/security)

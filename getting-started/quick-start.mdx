@@ -1,0 +1,321 @@
+---
+title: "Quick Start Guide"
+description: "Get DeepWiki-Open running in under 5 minutes with Docker or manual setup"
+---
+
+Get DeepWiki-Open up and running quickly with either Docker (recommended) or manual setup.
+
+## Docker Setup (Recommended)
+
+The fastest way to get started with DeepWiki-Open is using Docker Compose.
+
+<Steps>
+<Step title="Clone the Repository">
+```bash
+git clone https://github.com/AsyncFuncAI/deepwiki-open.git
+cd deepwiki-open
+```
+
+<Check>
+Repository cloned successfully
+</Check>
+</Step>
+
+<Step title="Configure Environment Variables">
+Create a `.env` file with your API keys:
+
+```bash .env
+# Required: Choose at least one AI provider
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional: Additional providers
+OPENROUTER_API_KEY=your_openrouter_api_key
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint
+AZURE_OPENAI_VERSION=your_azure_openai_version
+OLLAMA_HOST=http://localhost:11434
+```
+
+<Warning>
+At minimum, you need either `GOOGLE_API_KEY` or `OPENAI_API_KEY` to get started.
+</Warning>
+</Step>
+
+<Step title="Start with Docker Compose">
+```bash
+docker-compose up
+```
+
+<Info>
+This will start both the backend API server (port 8001) and frontend web app (port 3000).
+</Info>
+</Step>
+
+<Step title="Access DeepWiki">
+Open your browser to [http://localhost:3000](http://localhost:3000)
+
+<Check>
+You should see the DeepWiki interface ready to generate your first wiki!
+</Check>
+</Step>
+</Steps>
+
+## Manual Setup
+
+For development or custom configurations, you can set up DeepWiki manually.
+
+<Steps>
+<Step title="Set Up Environment Variables">
+Create a `.env` file in the project root:
+
+<CodeGroup>
+```bash Minimal Setup
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+```bash Complete Setup
+# AI Provider Keys
+GOOGLE_API_KEY=your_google_api_key
+OPENAI_API_KEY=your_openai_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# Azure OpenAI (Enterprise)
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint
+AZURE_OPENAI_VERSION=your_azure_openai_version
+
+# Local/External Services
+OLLAMA_HOST=http://localhost:11434
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Server Configuration
+PORT=8001
+SERVER_BASE_URL=http://localhost:8001
+
+# Authorization (Optional)
+DEEPWIKI_AUTH_MODE=false
+DEEPWIKI_AUTH_CODE=your_secret_code
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE_PATH=./api/logs/application.log
+```
+</CodeGroup>
+</Step>
+
+<Step title="Start the Backend API">
+```bash
+# Install Python dependencies
+pip install -r api/requirements.txt
+
+# Start the API server
+python -m api.main
+```
+
+<Info>
+The API server will start on port 8001 by default.
+</Info>
+</Step>
+
+<Step title="Start the Frontend">
+Open a new terminal and run:
+
+<Tabs>
+<Tab title="npm">
+```bash
+npm install
+npm run dev
+```
+</Tab>
+
+<Tab title="yarn">
+```bash
+yarn install
+yarn dev
+```
+</Tab>
+</Tabs>
+
+<Check>
+The frontend will be available at [http://localhost:3000](http://localhost:3000)
+</Check>
+</Step>
+</Steps>
+
+## Generate Your First Wiki
+
+<Steps>
+<Step title="Enter Repository URL">
+In the DeepWiki interface, enter a GitHub, GitLab, or BitBucket repository URL:
+
+- `https://github.com/openai/codex`
+- `https://github.com/microsoft/autogen`
+- `https://gitlab.com/gitlab-org/gitlab`
+- `https://bitbucket.org/redradish/atlassian_app_versions`
+
+<Tip>
+Start with a smaller repository for your first test to see faster results.
+</Tip>
+</Step>
+
+<Step title="Add Access Token (For Private Repos)">
+If accessing a private repository:
+1. Click "+ Add access tokens"
+2. Enter your GitHub, GitLab, or BitBucket personal access token
+
+<Warning>
+Ensure your token has appropriate repository access permissions.
+</Warning>
+</Step>
+
+<Step title="Select AI Model Provider">
+Choose your preferred AI model provider and model:
+
+<Accordion title="Google Gemini (Recommended)">
+- **Default**: `gemini-2.0-flash`
+- **Also available**: `gemini-1.5-flash`, `gemini-1.0-pro`
+- **Best for**: Fast, reliable documentation generation
+</Accordion>
+
+<Accordion title="OpenAI">
+- **Default**: `gpt-4o`
+- **Also available**: `o1`, `o3`, `o4-mini`
+- **Best for**: High-quality, detailed documentation
+</Accordion>
+
+<Accordion title="OpenRouter">
+- **Access to**: Claude, Llama, Mistral, and 100+ models
+- **Best for**: Trying different models without multiple API keys
+</Accordion>
+</Step>
+
+<Step title="Generate Wiki">
+Click "Generate Wiki" and watch the magic happen!
+
+<Info>
+Generation time varies by repository size. Smaller repos take 30 seconds to 2 minutes, while larger ones may take 5-10 minutes.
+</Info>
+</Step>
+</Steps>
+
+## API Key Setup
+
+<Tabs>
+<Tab title="Google Gemini">
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new API key
+3. Add to `.env` as `GOOGLE_API_KEY=your_key_here`
+
+<Note>
+Google Gemini offers generous free tier limits and fast performance.
+</Note>
+</Tab>
+
+<Tab title="OpenAI">
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create a new API key
+3. Add to `.env` as `OPENAI_API_KEY=your_key_here`
+
+<Warning>
+OpenAI requires a paid account for API access. Check your usage limits.
+</Warning>
+</Tab>
+
+<Tab title="OpenRouter">
+1. Sign up at [OpenRouter](https://openrouter.ai/)
+2. Get your API key from the dashboard
+3. Add to `.env` as `OPENROUTER_API_KEY=your_key_here`
+
+<Tip>
+OpenRouter provides access to 100+ models through one API, great for experimentation.
+</Tip>
+</Tab>
+
+<Tab title="Azure OpenAI">
+1. Create an Azure OpenAI resource in [Azure Portal](https://portal.azure.com/)
+2. Deploy a model (e.g., GPT-4o)
+3. Get your endpoint, API key, and API version
+4. Add all three to your `.env` file
+
+<Info>
+Azure OpenAI is ideal for enterprise deployments with enhanced security.
+</Info>
+</Tab>
+</Tabs>
+
+## Verification
+
+<AccordionGroup>
+<Accordion title="Backend Health Check">
+Visit [http://localhost:8001/docs](http://localhost:8001/docs) to see the FastAPI documentation and test endpoints.
+
+```bash
+# Test API health
+curl http://localhost:8001/health
+```
+</Accordion>
+
+<Accordion title="Frontend Connection">
+The frontend at [http://localhost:3000](http://localhost:3000) should show:
+- Repository input field
+- Model selection dropdown
+- Generate Wiki button
+</Accordion>
+
+<Accordion title="Environment Variables">
+Check that your environment variables are loaded correctly:
+
+```bash
+# In the API logs, you should see
+python -m api.main
+# INFO - Starting Streaming API on port 8001
+# No warnings about missing API keys for your chosen provider
+```
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Learn Core Features" icon="star" href="/guides/wiki-generation">
+  Explore wiki generation, Ask feature, and DeepResearch
+</Card>
+
+<Card title="Configure Model Providers" icon="gear" href="/getting-started/model-providers">
+  Set up multiple AI providers and choose the best models
+</Card>
+
+<Card title="Deploy to Production" icon="cloud" href="/guides/production-setup">
+  Deploy DeepWiki for production use
+</Card>
+
+<Card title="API Integration" icon="code" href="/api/overview">
+  Integrate DeepWiki into your existing workflows
+</Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Cannot connect to API server">
+- Ensure the backend is running on port 8001
+- Check firewall settings
+- Verify no other services are using port 8001
+</Accordion>
+
+<Accordion title="Missing environment variables error">
+- Check `.env` file exists in project root
+- Verify API keys are correctly formatted
+- Ensure no extra spaces in environment variables
+</Accordion>
+
+<Accordion title="API key not valid error">
+- Double-check API key accuracy
+- Verify API key permissions and quotas
+- Test API key with provider's documentation
+</Accordion>
+</AccordionGroup>
+
+For more detailed troubleshooting, see the [Troubleshooting Guide](/reference/troubleshooting).

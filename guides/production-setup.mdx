@@ -1,0 +1,2083 @@
+# Production Setup Guide
+
+This guide covers the complete production deployment of DeepWikiOpen, including architecture, security, monitoring, and scaling strategies.
+
+## Table of Contents
+
+1. [Production Architecture](#production-architecture)
+2. [Load Balancing & High Availability](#load-balancing--high-availability)
+3. [SSL/TLS Certificate Setup](#ssltls-certificate-setup)
+4. [Reverse Proxy Configuration](#reverse-proxy-configuration)
+5. [Security Hardening](#security-hardening)
+6. [Database Optimization](#database-optimization)
+7. [Monitoring & Alerting](#monitoring--alerting)
+8. [Log Management](#log-management)
+9. [Performance Tuning](#performance-tuning)
+10. [Scaling Strategies](#scaling-strategies)
+11. [Disaster Recovery](#disaster-recovery)
+12. [CI/CD Pipeline](#cicd-pipeline)
+13. [Cloud Deployments](#cloud-deployments)
+14. [On-Premise Setup](#on-premise-setup)
+
+## Production Architecture
+
+### Recommended Infrastructure Layout
+
+```mermaid
+graph TB
+    CDN[CDN/CloudFlare] --> LB[Load Balancer]
+    LB --> WAF[Web Application Firewall]
+    WAF --> RP1[Reverse Proxy 1]
+    WAF --> RP2[Reverse Proxy 2]
+    
+    RP1 --> APP1[App Server 1]
+    RP1 --> APP2[App Server 2]
+    RP2 --> APP3[App Server 3]
+    RP2 --> APP4[App Server 4]
+    
+    APP1 --> CACHE[Redis Cluster]
+    APP2 --> CACHE
+    APP3 --> CACHE
+    APP4 --> CACHE
+    
+    APP1 --> DB_PRIMARY[Primary DB]
+    APP2 --> DB_PRIMARY
+    APP3 --> DB_REPLICA[Read Replica]
+    APP4 --> DB_REPLICA
+    
+    DB_PRIMARY --> DB_REPLICA
+    
+    CACHE --> BACKUP_CACHE[Backup Redis]
+    DB_PRIMARY --> BACKUP_DB[Database Backups]
+```
+
+### Component Specifications
+
+**Application Servers:**
+- Minimum 3 instances for high availability
+- CPU: 4+ cores per instance
+- RAM: 8GB+ per instance
+- Storage: SSD with 100GB+ per instance
+
+**Database:**
+- Primary-replica configuration
+- Connection pooling enabled
+- Automated backups every 6 hours
+- Point-in-time recovery capability
+
+**Cache Layer:**
+- Redis Cluster with 3+ nodes
+- Sentinel for automatic failover
+- Memory: 4GB+ per node
+
+**Load Balancer:**
+- Layer 7 (HTTP/HTTPS) load balancing
+- Health check endpoints
+- SSL termination capability
+
+## Load Balancing & High Availability
+
+### HAProxy Configuration
+
+```bash
+# /etc/haproxy/haproxy.cfg
+global
+    daemon
+    maxconn 4096
+    log stdout local0
+    ssl-default-bind-ciphers PROFILE=SYSTEM
+    ssl-default-bind-options ssl-min-ver TLSv1.2 no-tls-tickets
+
+defaults
+    mode http
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+    option httplog
+    option dontlognull
+    option redispatch
+    retries 3
+
+frontend deepwikiopen_frontend
+    bind *:80
+    bind *:443 ssl crt /etc/ssl/certs/deepwikiopen.pem
+    redirect scheme https if !{ ssl_fc }
+    
+    # Security headers
+    http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    http-response set-header X-Frame-Options "SAMEORIGIN"
+    http-response set-header X-Content-Type-Options "nosniff"
+    http-response set-header X-XSS-Protection "1; mode=block"
+    
+    # Rate limiting
+    stick-table type ip size 100k expire 30s store http_req_rate(10s)
+    http-request track-sc0 src
+    http-request reject if { sc_http_req_rate(0) gt 20 }
+    
+    default_backend deepwikiopen_backend
+
+backend deepwikiopen_backend
+    balance roundrobin
+    option httpchk GET /health
+    http-check expect status 200
+    
+    server app1 10.0.1.10:3000 check inter 30s fall 3 rise 2
+    server app2 10.0.1.11:3000 check inter 30s fall 3 rise 2
+    server app3 10.0.1.12:3000 check inter 30s fall 3 rise 2
+    server app4 10.0.1.13:3000 check inter 30s fall 3 rise 2
+
+listen stats
+    bind *:8080
+    stats enable
+    stats uri /stats
+    stats refresh 30s
+    stats admin if TRUE
+```
+
+### Nginx Load Balancer Alternative
+
+```nginx
+upstream deepwikiopen_backend {
+    least_conn;
+    server 10.0.1.10:3000 max_fails=3 fail_timeout=30s;
+    server 10.0.1.11:3000 max_fails=3 fail_timeout=30s;
+    server 10.0.1.12:3000 max_fails=3 fail_timeout=30s;
+    server 10.0.1.13:3000 max_fails=3 fail_timeout=30s;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name deepwikiopen.com;
+    
+    ssl_certificate /etc/ssl/certs/deepwikiopen.crt;
+    ssl_certificate_key /etc/ssl/private/deepwikiopen.key;
+    
+    location / {
+        proxy_pass http://deepwikiopen_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+    
+    location /health {
+        access_log off;
+        proxy_pass http://deepwikiopen_backend;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+}
+```
+
+## SSL/TLS Certificate Setup
+
+### Let's Encrypt with Certbot
+
+```bash
+# Install certbot
+sudo apt-get update
+sudo apt-get install certbot python3-certbot-nginx
+
+# Obtain certificate
+sudo certbot --nginx -d deepwikiopen.com -d www.deepwikiopen.com
+
+# Auto-renewal setup
+sudo crontab -e
+# Add: 0 12 * * * /usr/bin/certbot renew --quiet
+```
+
+### Custom Certificate Setup
+
+```bash
+# Generate private key
+openssl genrsa -out deepwikiopen.key 2048
+
+# Generate certificate signing request
+openssl req -new -key deepwikiopen.key -out deepwikiopen.csr
+
+# After receiving certificate from CA
+sudo mkdir -p /etc/ssl/certs /etc/ssl/private
+sudo cp deepwikiopen.crt /etc/ssl/certs/
+sudo cp deepwikiopen.key /etc/ssl/private/
+sudo chmod 644 /etc/ssl/certs/deepwikiopen.crt
+sudo chmod 600 /etc/ssl/private/deepwikiopen.key
+```
+
+### SSL Configuration Best Practices
+
+```nginx
+# Strong SSL configuration
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384;
+ssl_prefer_server_ciphers off;
+ssl_session_cache shared:SSL:10m;
+ssl_session_tickets off;
+ssl_stapling on;
+ssl_stapling_verify on;
+
+# HSTS
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+```
+
+## Reverse Proxy Configuration
+
+### Nginx Reverse Proxy
+
+```nginx
+# /etc/nginx/sites-available/deepwikiopen
+server {
+    listen 80;
+    server_name deepwikiopen.com www.deepwikiopen.com;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name deepwikiopen.com www.deepwikiopen.com;
+    
+    # SSL Configuration
+    ssl_certificate /etc/ssl/certs/deepwikiopen.crt;
+    ssl_certificate_key /etc/ssl/private/deepwikiopen.key;
+    include /etc/nginx/snippets/ssl-params.conf;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+    
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
+    
+    # Static files caching
+    location ~* \.(jpg|jpeg|gif|png|css|js|ico|xml)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+    
+    # API endpoints
+    location /api/ {
+        proxy_pass http://localhost:3000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Rate limiting
+        limit_req zone=api burst=20 nodelay;
+    }
+    
+    # WebSocket support
+    location /ws {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    
+    # Main application
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        proxy_pass http://localhost:3000/health;
+    }
+}
+
+# Rate limiting zones
+http {
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req_zone $binary_remote_addr zone=general:10m rate=50r/s;
+}
+```
+
+### Apache Reverse Proxy
+
+```apache
+# Enable required modules
+sudo a2enmod proxy
+sudo a2enmod proxy_http
+sudo a2enmod proxy_balancer
+sudo a2enmod lbmethod_byrequests
+sudo a2enmod headers
+sudo a2enmod ssl
+
+# Virtual host configuration
+<VirtualHost *:443>
+    ServerName deepwikiopen.com
+    ServerAlias www.deepwikiopen.com
+    
+    # SSL Configuration
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/certs/deepwikiopen.crt
+    SSLCertificateKeyFile /etc/ssl/private/deepwikiopen.key
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+    SSLCipherSuite ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384
+    
+    # Security headers
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Frame-Options SAMEORIGIN
+    Header always set X-Content-Type-Options nosniff
+    
+    # Proxy configuration
+    ProxyPreserveHost On
+    ProxyRequests Off
+    
+    <Proxy balancer://deepwikiopen>
+        BalancerMember http://10.0.1.10:3000
+        BalancerMember http://10.0.1.11:3000
+        BalancerMember http://10.0.1.12:3000
+        ProxySet lbmethod=byrequests
+    </Proxy>
+    
+    ProxyPass /balancer-manager !
+    ProxyPass / balancer://deepwikiopen/
+    ProxyPassReverse / balancer://deepwikiopen/
+    
+    <Location "/balancer-manager">
+        SetHandler balancer-manager
+        Require ip 10.0.1.0/24
+    </Location>
+</VirtualHost>
+```
+
+## Security Hardening
+
+### Environment Security Configuration
+
+```bash
+# Production environment variables
+export NODE_ENV=production
+export DATABASE_URL="postgresql://user:password@db-host:5432/deepwikiopen"
+export REDIS_URL="redis://redis-host:6379"
+export JWT_SECRET="your-super-secure-jwt-secret-here"
+export ENCRYPTION_KEY="your-32-char-encryption-key-here"
+export SESSION_SECRET="your-session-secret-here"
+export RATE_LIMIT_MAX=100
+export RATE_LIMIT_WINDOW=900000
+export LOG_LEVEL=info
+export TRUST_PROXY=true
+export CORS_ORIGIN="https://deepwikiopen.com"
+```
+
+### Application Security Middleware
+
+```javascript
+// security.js
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const cors = require('cors');
+
+const securityMiddleware = (app) => {
+  // Helmet for security headers
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "wss:", "https:"],
+      },
+    },
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true
+    }
+  }));
+
+  // Rate limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 50,
+    message: 'Too many API requests from this IP',
+  });
+
+  app.use('/api/', apiLimiter);
+  app.use(limiter);
+
+  // CORS configuration
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN || 'https://deepwikiopen.com',
+    credentials: true,
+    optionsSuccessStatus: 200
+  }));
+
+  // Trust proxy for accurate IP addresses
+  app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+};
+
+module.exports = securityMiddleware;
+```
+
+### Firewall Configuration (UFW)
+
+```bash
+# Reset firewall
+sudo ufw --force reset
+
+# Default policies
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# SSH access (change port from default 22)
+sudo ufw allow 2222/tcp
+
+# HTTP/HTTPS
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Database (only from app servers)
+sudo ufw allow from 10.0.1.0/24 to any port 5432
+
+# Redis (only from app servers)
+sudo ufw allow from 10.0.1.0/24 to any port 6379
+
+# Monitoring
+sudo ufw allow from 10.0.1.0/24 to any port 9090
+sudo ufw allow from 10.0.1.0/24 to any port 3000
+
+# Enable firewall
+sudo ufw enable
+```
+
+### Fail2Ban Configuration
+
+```ini
+# /etc/fail2ban/jail.local
+[DEFAULT]
+bantime = 3600
+findtime = 600
+maxretry = 3
+backend = systemd
+
+[sshd]
+enabled = true
+port = 2222
+maxretry = 3
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+logpath = /var/log/nginx/error.log
+maxretry = 3
+
+[nginx-req-limit]
+enabled = true
+filter = nginx-req-limit
+logpath = /var/log/nginx/error.log
+maxretry = 10
+findtime = 600
+bantime = 7200
+```
+
+## Database Optimization
+
+### PostgreSQL Production Configuration
+
+```sql
+-- postgresql.conf optimizations
+shared_buffers = 2GB
+effective_cache_size = 6GB
+maintenance_work_mem = 512MB
+work_mem = 32MB
+max_connections = 200
+checkpoint_completion_target = 0.9
+wal_buffers = 16MB
+default_statistics_target = 100
+
+-- Enable connection pooling
+max_pool_size = 25
+min_pool_size = 5
+acquire_increment = 1
+max_statements = 50
+max_idle_time = 1800
+```
+
+### Database Backup Strategy
+
+```bash
+#!/bin/bash
+# backup-database.sh
+
+BACKUP_DIR="/backup/postgresql"
+DB_NAME="deepwikiopen"
+DB_USER="postgres"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="${BACKUP_DIR}/${DB_NAME}_${TIMESTAMP}.sql"
+
+# Create backup directory
+mkdir -p $BACKUP_DIR
+
+# Create database backup
+pg_dump -h localhost -U $DB_USER -d $DB_NAME > $BACKUP_FILE
+
+# Compress backup
+gzip $BACKUP_FILE
+
+# Upload to S3 (optional)
+if [ "$AWS_BACKUP" = "true" ]; then
+    aws s3 cp "${BACKUP_FILE}.gz" s3://deepwikiopen-backups/database/
+fi
+
+# Clean old backups (keep 30 days)
+find $BACKUP_DIR -name "*.sql.gz" -mtime +30 -delete
+
+# Verify backup integrity
+if [ $? -eq 0 ]; then
+    echo "Backup completed successfully: ${BACKUP_FILE}.gz"
+else
+    echo "Backup failed!" >&2
+    exit 1
+fi
+```
+
+### Database Monitoring
+
+```sql
+-- Monitor connection usage
+SELECT 
+    count(*) as total_connections,
+    count(*) filter (where state = 'active') as active_connections,
+    count(*) filter (where state = 'idle') as idle_connections
+FROM pg_stat_activity;
+
+-- Monitor query performance
+SELECT 
+    query,
+    calls,
+    total_time,
+    mean_time,
+    rows
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+
+-- Monitor database size
+SELECT 
+    pg_database.datname,
+    pg_database_size(pg_database.datname) as size_bytes,
+    pg_size_pretty(pg_database_size(pg_database.datname)) as size
+FROM pg_database
+ORDER BY size_bytes DESC;
+```
+
+## Monitoring & Alerting
+
+### Prometheus Configuration
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'deepwikiopen'
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  - job_name: 'node'
+    static_configs:
+      - targets: 
+        - 'app1:9100'
+        - 'app2:9100'
+        - 'app3:9100'
+        - 'db1:9100'
+    
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:9113']
+
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['db1:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:9121']
+```
+
+### Grafana Dashboard Configuration
+
+```json
+{
+  "dashboard": {
+    "title": "DeepWikiOpen Production Monitoring",
+    "panels": [
+      {
+        "title": "Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])",
+            "legendFormat": "Average Response Time"
+          }
+        ]
+      },
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "Requests/sec"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+            "legendFormat": "5xx Errors/sec"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### AlertManager Rules
+
+```yaml
+# rules/alerts.yml
+groups:
+- name: deepwikiopen
+  rules:
+  - alert: HighResponseTime
+    expr: avg(rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High response time detected"
+      
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "High error rate detected"
+      
+  - alert: DatabaseDown
+    expr: up{job="postgresql"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Database is down"
+      
+  - alert: HighMemoryUsage
+    expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage detected"
+```
+
+### Health Check Implementation
+
+```javascript
+// health.js
+const express = require('express');
+const { Pool } = require('pg');
+const redis = require('redis');
+
+const router = express.Router();
+
+const dbPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+const redisClient = redis.createClient({
+  url: process.env.REDIS_URL,
+});
+
+router.get('/health', async (req, res) => {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    services: {}
+  };
+
+  try {
+    // Database health check
+    const dbStart = Date.now();
+    await dbPool.query('SELECT 1');
+    health.services.database = {
+      status: 'healthy',
+      responseTime: Date.now() - dbStart
+    };
+  } catch (error) {
+    health.status = 'unhealthy';
+    health.services.database = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  try {
+    // Redis health check
+    const redisStart = Date.now();
+    await redisClient.ping();
+    health.services.cache = {
+      status: 'healthy',
+      responseTime: Date.now() - redisStart
+    };
+  } catch (error) {
+    health.status = 'unhealthy';
+    health.services.cache = {
+      status: 'unhealthy',
+      error: error.message
+    };
+  }
+
+  // Memory check
+  const memUsage = process.memoryUsage();
+  health.services.memory = {
+    status: memUsage.heapUsed / memUsage.heapTotal < 0.9 ? 'healthy' : 'warning',
+    heapUsed: memUsage.heapUsed,
+    heapTotal: memUsage.heapTotal,
+    external: memUsage.external
+  };
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
+module.exports = router;
+```
+
+## Log Management
+
+### Structured Logging Configuration
+
+```javascript
+// logger.js
+const winston = require('winston');
+const { ElasticsearchTransport } = require('winston-elasticsearch');
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  defaultMeta: {
+    service: 'deepwikiopen',
+    environment: process.env.NODE_ENV,
+    version: process.env.APP_VERSION
+  },
+  transports: [
+    new winston.transports.File({
+      filename: '/var/log/deepwikiopen/error.log',
+      level: 'error',
+      maxsize: 10485760, // 10MB
+      maxFiles: 5
+    }),
+    new winston.transports.File({
+      filename: '/var/log/deepwikiopen/combined.log',
+      maxsize: 10485760,
+      maxFiles: 10
+    })
+  ]
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
+
+// Elasticsearch transport for production
+if (process.env.ELASTICSEARCH_URL) {
+  logger.add(new ElasticsearchTransport({
+    clientOpts: { node: process.env.ELASTICSEARCH_URL },
+    index: 'deepwikiopen-logs'
+  }));
+}
+
+module.exports = logger;
+```
+
+### Logrotate Configuration
+
+```bash
+# /etc/logrotate.d/deepwikiopen
+/var/log/deepwikiopen/*.log {
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 644 deepwikiopen deepwikiopen
+    postrotate
+        systemctl reload deepwikiopen
+    endscript
+}
+```
+
+### ELK Stack Setup
+
+```yaml
+# docker-compose.yml for ELK
+version: '3.7'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.0
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.15.0
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.15.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+volumes:
+  elasticsearch_data:
+```
+
+## Performance Tuning
+
+### Application Performance Optimization
+
+```javascript
+// performance.js
+const compression = require('compression');
+const responseTime = require('response-time');
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
+
+// Cluster setup for production
+if (cluster.isMaster && process.env.NODE_ENV === 'production') {
+  console.log(`Master ${process.pid} is running`);
+  
+  // Fork workers
+  for (let i = 0; i < numCPUs; i++) {
+    cluster.fork();
+  }
+  
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`Worker ${worker.process.pid} died`);
+    cluster.fork();
+  });
+} else {
+  const express = require('express');
+  const app = express();
+  
+  // Performance middleware
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+    level: 6,
+    threshold: 1024
+  }));
+  
+  app.use(responseTime((req, res, time) => {
+    console.log(`${req.method} ${req.url} - ${time}ms`);
+  }));
+  
+  // Connection pooling
+  const { Pool } = require('pg');
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+  
+  // Cache configuration
+  const NodeCache = require('node-cache');
+  const cache = new NodeCache({
+    stdTTL: 600, // 10 minutes
+    checkperiod: 120,
+    useClones: false
+  });
+  
+  // Caching middleware
+  const cacheMiddleware = (duration) => {
+    return (req, res, next) => {
+      const key = req.originalUrl || req.url;
+      const cached = cache.get(key);
+      
+      if (cached) {
+        return res.json(cached);
+      }
+      
+      res.sendResponse = res.json;
+      res.json = (body) => {
+        cache.set(key, body, duration);
+        res.sendResponse(body);
+      };
+      
+      next();
+    };
+  };
+  
+  app.use('/api/search', cacheMiddleware(300)); // 5 minutes cache
+  
+  console.log(`Worker ${process.pid} started`);
+}
+```
+
+### Database Query Optimization
+
+```sql
+-- Create appropriate indexes
+CREATE INDEX CONCURRENTLY idx_articles_title_search ON articles USING gin(to_tsvector('english', title));
+CREATE INDEX CONCURRENTLY idx_articles_content_search ON articles USING gin(to_tsvector('english', content));
+CREATE INDEX CONCURRENTLY idx_articles_created_at ON articles(created_at DESC);
+CREATE INDEX CONCURRENTLY idx_articles_category ON articles(category_id);
+
+-- Partitioning for large tables
+CREATE TABLE articles_2023 PARTITION OF articles
+    FOR VALUES FROM ('2023-01-01') TO ('2024-01-01');
+
+-- Query optimization examples
+EXPLAIN ANALYZE SELECT * FROM articles 
+WHERE to_tsvector('english', title || ' ' || content) @@ to_tsquery('search_term')
+ORDER BY created_at DESC 
+LIMIT 20;
+
+-- Connection pooling settings
+ALTER SYSTEM SET max_connections = 200;
+ALTER SYSTEM SET shared_buffers = '2GB';
+ALTER SYSTEM SET effective_cache_size = '6GB';
+SELECT pg_reload_conf();
+```
+
+### Redis Cache Optimization
+
+```javascript
+// cache.js
+const redis = require('redis');
+const { promisify } = require('util');
+
+class CacheManager {
+  constructor() {
+    this.client = redis.createClient({
+      url: process.env.REDIS_URL,
+      retry_strategy: (options) => {
+        if (options.error && options.error.code === 'ECONNREFUSED') {
+          return new Error('Redis server connection refused');
+        }
+        if (options.total_retry_time > 1000 * 60 * 60) {
+          return new Error('Retry time exhausted');
+        }
+        if (options.attempt > 10) {
+          return undefined;
+        }
+        return Math.min(options.attempt * 100, 3000);
+      }
+    });
+    
+    this.getAsync = promisify(this.client.get).bind(this.client);
+    this.setAsync = promisify(this.client.set).bind(this.client);
+    this.delAsync = promisify(this.client.del).bind(this.client);
+  }
+  
+  async get(key) {
+    try {
+      const result = await this.getAsync(key);
+      return result ? JSON.parse(result) : null;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      return null;
+    }
+  }
+  
+  async set(key, value, ttl = 3600) {
+    try {
+      await this.setAsync(key, JSON.stringify(value), 'EX', ttl);
+      return true;
+    } catch (error) {
+      console.error('Cache set error:', error);
+      return false;
+    }
+  }
+  
+  async invalidate(pattern) {
+    try {
+      const keys = await this.client.keys(pattern);
+      if (keys.length > 0) {
+        await this.delAsync(keys);
+      }
+      return true;
+    } catch (error) {
+      console.error('Cache invalidate error:', error);
+      return false;
+    }
+  }
+}
+
+module.exports = new CacheManager();
+```
+
+## Scaling Strategies
+
+### Horizontal Scaling Setup
+
+```yaml
+# kubernetes deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwikiopen
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: deepwikiopen
+  template:
+    metadata:
+      labels:
+        app: deepwikiopen
+    spec:
+      containers:
+      - name: deepwikiopen
+        image: deepwikiopen:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepwikiopen-service
+spec:
+  selector:
+    app: deepwikiopen
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: deepwikiopen-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: deepwikiopen
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+### Auto-scaling Scripts
+
+```bash
+#!/bin/bash
+# auto-scale.sh
+
+CURRENT_LOAD=$(uptime | awk -F'load average:' '{ print $2 }' | cut -d, -f1 | tr -d ' ')
+CPU_CORES=$(nproc)
+THRESHOLD=$(echo "$CPU_CORES * 0.8" | bc)
+
+if (( $(echo "$CURRENT_LOAD > $THRESHOLD" | bc -l) )); then
+    echo "High load detected: $CURRENT_LOAD"
+    # Scale up
+    docker-compose up -d --scale deepwikiopen=6
+    
+    # Update load balancer
+    sudo systemctl reload nginx
+    
+    echo "Scaled up to 6 instances"
+elif (( $(echo "$CURRENT_LOAD < $(echo "$THRESHOLD * 0.5" | bc)" | bc -l) )); then
+    echo "Low load detected: $CURRENT_LOAD"
+    # Scale down
+    docker-compose up -d --scale deepwikiopen=2
+    
+    echo "Scaled down to 2 instances"
+fi
+```
+
+### Database Read Replica Setup
+
+```sql
+-- On primary database
+ALTER SYSTEM SET wal_level = replica;
+ALTER SYSTEM SET max_wal_senders = 3;
+ALTER SYSTEM SET max_replication_slots = 3;
+SELECT pg_reload_conf();
+
+-- Create replication user
+CREATE USER replicator REPLICATION LOGIN CONNECTION LIMIT 1 ENCRYPTED PASSWORD 'secure_password';
+
+-- On replica server
+pg_basebackup -h primary-server -D /var/lib/postgresql/12/main -U replicator -v -P -W
+
+-- recovery.conf on replica
+standby_mode = 'on'
+primary_conninfo = 'host=primary-server port=5432 user=replicator'
+trigger_file = '/tmp/postgresql.trigger'
+```
+
+## Disaster Recovery
+
+### Backup Strategy
+
+```bash
+#!/bin/bash
+# disaster-recovery-backup.sh
+
+BACKUP_ROOT="/backup"
+S3_BUCKET="deepwikiopen-disaster-recovery"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Database backup
+pg_dump -h localhost -U postgres deepwikiopen | gzip > "$BACKUP_ROOT/database_$DATE.sql.gz"
+
+# Application files backup
+tar -czf "$BACKUP_ROOT/application_$DATE.tar.gz" /var/www/deepwikiopen
+
+# Configuration backup
+tar -czf "$BACKUP_ROOT/config_$DATE.tar.gz" /etc/nginx /etc/ssl
+
+# Upload to S3
+aws s3 sync $BACKUP_ROOT s3://$S3_BUCKET/backups/$DATE/
+
+# Create disaster recovery snapshot
+aws ec2 create-snapshot --volume-id vol-1234567890abcdef0 --description "DR backup $DATE"
+
+# Test backup integrity
+gunzip -t "$BACKUP_ROOT/database_$DATE.sql.gz"
+if [ $? -eq 0 ]; then
+    echo "Database backup verified successfully"
+else
+    echo "Database backup verification failed!" >&2
+    exit 1
+fi
+
+# Clean old backups (keep 30 days)
+find $BACKUP_ROOT -name "*.gz" -mtime +30 -delete
+aws s3api list-objects-v2 --bucket $S3_BUCKET --query "Contents[?LastModified<='$(date -d '30 days ago' -I)'].Key" --output text | xargs -I {} aws s3 rm s3://$S3_BUCKET/{}
+```
+
+### Recovery Procedures
+
+```bash
+#!/bin/bash
+# disaster-recovery-restore.sh
+
+BACKUP_DATE=$1
+S3_BUCKET="deepwikiopen-disaster-recovery"
+
+if [ -z "$BACKUP_DATE" ]; then
+    echo "Usage: $0 YYYYMMDD_HHMMSS"
+    exit 1
+fi
+
+echo "Starting disaster recovery for backup: $BACKUP_DATE"
+
+# Download backups from S3
+aws s3 sync s3://$S3_BUCKET/backups/$BACKUP_DATE/ /tmp/restore/
+
+# Stop application
+sudo systemctl stop deepwikiopen
+sudo systemctl stop nginx
+
+# Restore database
+sudo -u postgres dropdb deepwikiopen
+sudo -u postgres createdb deepwikiopen
+gunzip -c /tmp/restore/database_$BACKUP_DATE.sql.gz | sudo -u postgres psql deepwikiopen
+
+# Restore application files
+tar -xzf /tmp/restore/application_$BACKUP_DATE.tar.gz -C /
+
+# Restore configuration
+tar -xzf /tmp/restore/config_$BACKUP_DATE.tar.gz -C /
+
+# Verify restoration
+sudo -u postgres psql deepwikiopen -c "SELECT COUNT(*) FROM articles;"
+
+# Start services
+sudo systemctl start deepwikiopen
+sudo systemctl start nginx
+
+# Verify application is working
+curl -f http://localhost/health || {
+    echo "Health check failed after restoration!"
+    exit 1
+}
+
+echo "Disaster recovery completed successfully"
+```
+
+### RTO/RPO Documentation
+
+```yaml
+# disaster-recovery-plan.yml
+recovery_objectives:
+  rpo: 1_hour  # Recovery Point Objective
+  rto: 4_hours # Recovery Time Objective
+
+backup_schedule:
+  database:
+    full: "0 2 * * 0"    # Weekly full backup
+    incremental: "0 */6 * * *" # Every 6 hours
+  
+  application:
+    frequency: "0 1 * * *" # Daily
+    
+  configuration:
+    frequency: "0 3 * * 1" # Weekly
+
+recovery_procedures:
+  - verify_backup_integrity
+  - provision_infrastructure
+  - restore_database
+  - restore_application
+  - restore_configuration
+  - verify_functionality
+  - update_dns
+  - notify_stakeholders
+
+contacts:
+  primary: "ops-team@company.com"
+  backup: "cto@company.com"
+  escalation: "ceo@company.com"
+```
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+
+```yaml
+# .github/workflows/production-deploy.yml
+name: Production Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '18.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: deepwikiopen
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: deepwikiopen_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run linting
+      run: npm run lint
+    
+    - name: Run type checking
+      run: npm run typecheck
+    
+    - name: Run tests
+      run: npm test
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/deepwikiopen_test
+        REDIS_URL: redis://localhost:6379
+    
+    - name: Run integration tests
+      run: npm run test:integration
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/deepwikiopen_test
+        REDIS_URL: redis://localhost:6379
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security audit
+      run: npm audit --audit-level high
+    
+    - name: Run Snyk security scan
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  build:
+    needs: [test, security-scan]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix=sha-
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./Dockerfile.production
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - name: Deploy to staging
+      run: |
+        # Deploy to staging environment
+        echo "Deploying to staging..."
+        # Add your staging deployment commands here
+
+  deploy-production:
+    needs: [build, deploy-staging]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Deploy to production
+      run: |
+        # Deploy to production environment
+        echo "Deploying to production..."
+        # Add your production deployment commands here
+    
+    - name: Run smoke tests
+      run: |
+        # Run post-deployment smoke tests
+        curl -f https://deepwikiopen.com/health
+        curl -f https://deepwikiopen.com/api/health
+```
+
+### Production Dockerfile
+
+```dockerfile
+# Dockerfile.production
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+COPY . .
+RUN npm run build
+
+FROM node:18-alpine AS production
+
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S deepwikiopen -u 1001
+
+WORKDIR /app
+
+COPY --from=builder --chown=deepwikiopen:nodejs /app/dist ./dist
+COPY --from=builder --chown=deepwikiopen:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=deepwikiopen:nodejs /app/package.json ./package.json
+
+USER deepwikiopen
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node healthcheck.js
+
+CMD ["node", "dist/server.js"]
+```
+
+## Cloud Deployments
+
+### AWS Deployment
+
+#### ECS with Fargate
+
+```yaml
+# aws-ecs-task-definition.json
+{
+  "family": "deepwikiopen-production",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/deepwikiopenTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "deepwikiopen",
+      "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/deepwikiopen:latest",
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:deepwikiopen/database-url"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/deepwikiopen",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
+```
+
+#### Terraform Infrastructure
+
+```hcl
+# aws-infrastructure.tf
+provider "aws" {
+  region = "us-east-1"
+}
+
+# VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  
+  tags = {
+    Name = "deepwikiopen-vpc"
+  }
+}
+
+# Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  
+  tags = {
+    Name = "deepwikiopen-igw"
+  }
+}
+
+# Subnets
+resource "aws_subnet" "public" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.${count.index + 1}.0/24"
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  
+  map_public_ip_on_launch = true
+  
+  tags = {
+    Name = "deepwikiopen-public-${count.index + 1}"
+  }
+}
+
+resource "aws_subnet" "private" {
+  count             = 2
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.${count.index + 10}.0/24"
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  
+  tags = {
+    Name = "deepwikiopen-private-${count.index + 1}"
+  }
+}
+
+# RDS Database
+resource "aws_db_instance" "main" {
+  identifier             = "deepwikiopen-db"
+  engine                 = "postgres"
+  engine_version         = "13.7"
+  instance_class         = "db.t3.medium"
+  allocated_storage      = 100
+  max_allocated_storage  = 1000
+  
+  db_name  = "deepwikiopen"
+  username = var.db_username
+  password = var.db_password
+  
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  
+  backup_retention_period = 30
+  backup_window          = "03:00-04:00"
+  maintenance_window     = "sun:04:00-sun:05:00"
+  
+  skip_final_snapshot = false
+  final_snapshot_identifier = "deepwikiopen-final-snapshot"
+  
+  tags = {
+    Name = "deepwikiopen-database"
+  }
+}
+
+# ElastiCache Redis
+resource "aws_elasticache_subnet_group" "main" {
+  name       = "deepwikiopen-cache-subnet"
+  subnet_ids = aws_subnet.private[*].id
+}
+
+resource "aws_elasticache_replication_group" "main" {
+  replication_group_id         = "deepwikiopen-redis"
+  description                  = "Redis cluster for DeepWikiOpen"
+  
+  node_type                    = "cache.t3.micro"
+  port                         = 6379
+  parameter_group_name         = "default.redis6.x"
+  
+  num_cache_clusters           = 2
+  automatic_failover_enabled   = true
+  multi_az_enabled            = true
+  
+  subnet_group_name           = aws_elasticache_subnet_group.main.name
+  security_group_ids          = [aws_security_group.redis.id]
+  
+  at_rest_encryption_enabled  = true
+  transit_encryption_enabled  = true
+  auth_token                  = var.redis_auth_token
+  
+  tags = {
+    Name = "deepwikiopen-redis"
+  }
+}
+
+# Application Load Balancer
+resource "aws_lb" "main" {
+  name               = "deepwikiopen-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = aws_subnet.public[*].id
+  
+  enable_deletion_protection = true
+  
+  tags = {
+    Name = "deepwikiopen-alb"
+  }
+}
+
+# ECS Cluster
+resource "aws_ecs_cluster" "main" {
+  name = "deepwikiopen"
+  
+  capacity_providers = ["FARGATE"]
+  
+  default_capacity_provider_strategy {
+    capacity_provider = "FARGATE"
+    weight           = 1
+  }
+  
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
+  
+  tags = {
+    Name = "deepwikiopen-cluster"
+  }
+}
+```
+
+### Google Cloud Platform Deployment
+
+```yaml
+# gcp-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwikiopen
+  namespace: production
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: deepwikiopen
+  template:
+    metadata:
+      labels:
+        app: deepwikiopen
+    spec:
+      containers:
+      - name: deepwikiopen
+        image: gcr.io/your-project/deepwikiopen:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: redis-url
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepwikiopen-service
+  namespace: production
+spec:
+  selector:
+    app: deepwikiopen
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: deepwikiopen-ssl-cert
+  namespace: production
+spec:
+  domains:
+    - deepwikiopen.com
+    - www.deepwikiopen.com
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: deepwikiopen-ingress
+  namespace: production
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: deepwikiopen-ip
+    networking.gke.io/managed-certificates: deepwikiopen-ssl-cert
+    kubernetes.io/ingress.class: "gce"
+spec:
+  rules:
+  - host: deepwikiopen.com
+    http:
+      paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: deepwikiopen-service
+            port:
+              number: 80
+```
+
+### Azure Deployment
+
+```yaml
+# azure-container-instances.yaml
+apiVersion: 2019-12-01
+location: eastus
+name: deepwikiopen-container-group
+properties:
+  containers:
+  - name: deepwikiopen
+    properties:
+      image: your-registry.azurecr.io/deepwikiopen:latest
+      resources:
+        requests:
+          cpu: 2
+          memoryInGB: 4
+      ports:
+      - port: 3000
+        protocol: TCP
+      environmentVariables:
+      - name: NODE_ENV
+        value: production
+      - name: DATABASE_URL
+        secureValue: your-database-connection-string
+      - name: REDIS_URL
+        secureValue: your-redis-connection-string
+  osType: Linux
+  restartPolicy: Always
+  ipAddress:
+    type: Public
+    ports:
+    - protocol: tcp
+      port: 3000
+    dnsNameLabel: deepwikiopen
+  sku: Standard
+tags:
+  environment: production
+  application: deepwikiopen
+```
+
+## On-Premise Setup
+
+### Server Requirements
+
+```bash
+# System requirements
+CPU: 8+ cores
+RAM: 16GB+ 
+Storage: 500GB+ SSD
+Network: 1Gbps+
+OS: Ubuntu 20.04 LTS or CentOS 8
+
+# Install prerequisites
+sudo apt update
+sudo apt install -y nodejs npm nginx postgresql redis-server
+
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+```
+
+### Docker Compose Production Setup
+
+```yaml
+# docker-compose.production.yml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/deepwikiopen
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - db
+      - redis
+    networks:
+      - deepwikiopen-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - deepwikiopen-network
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=deepwikiopen
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - deepwikiopen-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+
+  redis:
+    image: redis:6-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - deepwikiopen-network
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - deepwikiopen-network
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - deepwikiopen-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  deepwikiopen-network:
+    driver: bridge
+```
+
+### Production Environment Configuration
+
+```bash
+# .env.production
+NODE_ENV=production
+PORT=3000
+
+# Database
+DATABASE_URL=postgresql://postgres:secure_password@localhost:5432/deepwikiopen
+DB_POOL_SIZE=25
+
+# Redis
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=secure_redis_password
+
+# Security
+JWT_SECRET=your-super-secure-jwt-secret-minimum-32-characters
+SESSION_SECRET=your-session-secret-minimum-32-characters
+ENCRYPTION_KEY=your-32-character-encryption-key
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE_PATH=/var/log/deepwikiopen/app.log
+
+# Performance
+CLUSTER_ENABLED=true
+CACHE_TTL=3600
+COMPRESSION_ENABLED=true
+
+# Monitoring
+PROMETHEUS_ENABLED=true
+HEALTH_CHECK_INTERVAL=30
+
+# Email (for notifications)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=notifications@deepwikiopen.com
+SMTP_PASS=smtp_password
+
+# External Services
+CDN_URL=https://cdn.deepwikiopen.com
+ANALYTICS_ID=your-analytics-id
+```
+
+This comprehensive production setup guide covers all aspects of deploying DeepWikiOpen in a production environment, from basic architecture to advanced scaling and disaster recovery strategies. Choose the deployment method that best fits your infrastructure requirements and scale accordingly.

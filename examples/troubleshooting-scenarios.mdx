@@ -1,0 +1,681 @@
+---
+title: Troubleshooting Scenarios
+description: Real-world troubleshooting examples and solutions for common DeepWikiOpen issues
+---
+
+# Troubleshooting Scenarios
+
+This guide provides step-by-step solutions for common issues you may encounter when using DeepWikiOpen.
+
+## 1. API Key Validation Issues
+
+### Scenario: "Invalid API key" error when starting the application
+
+#### Symptoms
+```bash
+Error: Invalid API key provided
+Status: 401 Unauthorized
+```
+
+#### Debugging Steps
+1. **Verify API key format**
+   ```bash
+   # Check if API key is properly set
+   echo $ANTHROPIC_API_KEY
+   
+   # Should start with "sk-ant-api03-"
+   ```
+
+2. **Check environment file**
+   ```bash
+   # Ensure .env file exists
+   ls -la .env
+   
+   # Verify contents
+   cat .env | grep ANTHROPIC_API_KEY
+   ```
+
+3. **Test API key directly**
+   ```bash
+   curl https://api.anthropic.com/v1/messages \
+     -H "x-api-key: $ANTHROPIC_API_KEY" \
+     -H "anthropic-version: 2023-06-01" \
+     -H "content-type: application/json" \
+     -d '{
+       "model": "claude-3-5-sonnet-20241022",
+       "max_tokens": 10,
+       "messages": [{"role": "user", "content": "Hello"}]
+     }'
+   ```
+
+#### Solutions
+```bash
+# Solution 1: Export API key correctly
+export ANTHROPIC_API_KEY="sk-ant-api03-your-actual-key"
+
+# Solution 2: Fix .env file formatting
+echo 'ANTHROPIC_API_KEY="sk-ant-api03-your-actual-key"' > .env
+
+# Solution 3: Use Docker with proper env passing
+docker run -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  deepwikiopen/app:latest
+
+# Solution 4: Check for special characters
+# Ensure no trailing spaces or newlines
+ANTHROPIC_API_KEY=$(echo "$ANTHROPIC_API_KEY" | tr -d ' \n')
+```
+
+## 2. Connection Problems (CORS, Network)
+
+### Scenario: CORS errors when accessing the API
+
+#### Symptoms
+```
+Access to XMLHttpRequest at 'http://localhost:8000/api' from origin 
+'http://localhost:3000' has been blocked by CORS policy
+```
+
+#### Debugging Steps
+1. **Check server CORS configuration**
+   ```python
+   # backend/main.py
+   from fastapi.middleware.cors import CORSMiddleware
+   
+   app.add_middleware(
+       CORSMiddleware,
+       allow_origins=["http://localhost:3000"],  # Add your frontend URL
+       allow_credentials=True,
+       allow_methods=["*"],
+       allow_headers=["*"],
+   )
+   ```
+
+2. **Verify network connectivity**
+   ```bash
+   # Test backend is running
+   curl http://localhost:8000/health
+   
+   # Check ports are not blocked
+   netstat -an | grep -E "8000|3000"
+   ```
+
+3. **Inspect browser network tab**
+   - Open Developer Tools → Network tab
+   - Look for preflight OPTIONS requests
+   - Check response headers for CORS headers
+
+#### Solutions
+```javascript
+// Solution 1: Frontend proxy configuration
+// frontend/package.json
+{
+  "proxy": "http://localhost:8000"
+}
+
+// Solution 2: Use environment-specific API URLs
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+// Solution 3: nginx reverse proxy
+// nginx.conf
+server {
+    location /api {
+        proxy_pass http://backend:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+## 3. Large Repository Handling
+
+### Scenario: Application crashes when analyzing large repositories
+
+#### Symptoms
+```
+Error: JavaScript heap out of memory
+FATAL ERROR: Reached heap limit Allocation failed
+```
+
+#### Debugging Steps
+1. **Monitor memory usage**
+   ```bash
+   # Check current memory usage
+   docker stats
+   
+   # Monitor Node.js memory
+   node --max-old-space-size=4096 server.js
+   ```
+
+2. **Profile repository size**
+   ```bash
+   # Check repository size
+   du -sh /path/to/repo
+   
+   # Count files
+   find /path/to/repo -type f | wc -l
+   ```
+
+#### Solutions
+```javascript
+// Solution 1: Implement streaming file processing
+const processLargeRepo = async (repoPath) => {
+  const stream = fs.createReadStream(repoPath);
+  const chunks = [];
+  
+  for await (const chunk of stream) {
+    // Process in chunks
+    await processChunk(chunk);
+    
+    // Clear memory periodically
+    if (chunks.length > 1000) {
+      await flushToDatabase(chunks);
+      chunks.length = 0;
+    }
+  }
+};
+
+// Solution 2: Use worker threads
+const { Worker } = require('worker_threads');
+
+const analyzeInWorker = (filePath) => {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker('./analyzer.js', {
+      workerData: { filePath }
+    });
+    
+    worker.on('message', resolve);
+    worker.on('error', reject);
+  });
+};
+
+// Solution 3: Docker memory limits
+// docker-compose.yml
+services:
+  app:
+    mem_limit: 4g
+    memswap_limit: 4g
+```
+
+## 4. Memory and Performance Issues
+
+### Scenario: Slow response times and high memory usage
+
+#### Debugging Steps
+1. **Profile application performance**
+   ```bash
+   # Node.js profiling
+   node --inspect server.js
+   
+   # Python profiling
+   python -m cProfile -o profile.stats app.py
+   ```
+
+2. **Monitor resource usage**
+   ```bash
+   # Real-time monitoring
+   htop
+   iotop
+   
+   # Docker resource usage
+   docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+   ```
+
+#### Solutions
+```python
+# Solution 1: Implement caching
+from functools import lru_cache
+import redis
+
+cache = redis.Redis(host='localhost', port=6379)
+
+@lru_cache(maxsize=1000)
+def expensive_operation(repo_path):
+    # Check cache first
+    cached = cache.get(f"analysis:{repo_path}")
+    if cached:
+        return json.loads(cached)
+    
+    result = perform_analysis(repo_path)
+    cache.set(f"analysis:{repo_path}", json.dumps(result), ex=3600)
+    return result
+
+# Solution 2: Batch processing
+async def batch_analyze(files, batch_size=100):
+    for i in range(0, len(files), batch_size):
+        batch = files[i:i + batch_size]
+        await asyncio.gather(*[analyze_file(f) for f in batch])
+        
+        # Allow garbage collection
+        gc.collect()
+```
+
+## 5. Docker Container Problems
+
+### Scenario: Container fails to start or crashes immediately
+
+#### Symptoms
+```
+docker: Error response from daemon: OCI runtime create failed
+Container exited with code 137 (Out of Memory)
+```
+
+#### Debugging Steps
+1. **Check container logs**
+   ```bash
+   docker logs deepwikiopen-app
+   docker logs --tail 50 -f deepwikiopen-app
+   ```
+
+2. **Inspect container**
+   ```bash
+   docker inspect deepwikiopen-app
+   docker exec -it deepwikiopen-app /bin/sh
+   ```
+
+#### Solutions
+```bash
+# Solution 1: Rebuild with proper base image
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Solution 2: Fix permission issues
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+USER nodejs
+
+# Solution 3: Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s \
+  CMD node healthcheck.js || exit 1
+```
+
+## 6. Model Selection Errors
+
+### Scenario: "Model not found" or incorrect model responses
+
+#### Symptoms
+```
+Error: Model 'claude-3-opus' not found
+Available models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022']
+```
+
+#### Debugging Steps
+1. **List available models**
+   ```python
+   import anthropic
+   
+   client = anthropic.Anthropic()
+   # Check model availability based on your API tier
+   ```
+
+2. **Verify model configuration**
+   ```javascript
+   // config/models.js
+   export const AVAILABLE_MODELS = {
+     'claude-3-5-sonnet-20241022': {
+       maxTokens: 8192,
+       contextWindow: 200000
+     },
+     'claude-3-5-haiku-20241022': {
+       maxTokens: 8192,
+       contextWindow: 200000
+     }
+   };
+   ```
+
+#### Solutions
+```javascript
+// Solution 1: Implement model fallback
+const getModel = (preferred) => {
+  const fallbackChain = [
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022',
+    'claude-3-haiku-20240307'
+  ];
+  
+  if (AVAILABLE_MODELS[preferred]) {
+    return preferred;
+  }
+  
+  return fallbackChain.find(model => AVAILABLE_MODELS[model]);
+};
+
+// Solution 2: Dynamic model selection
+const selectOptimalModel = (contextLength, speed = 'balanced') => {
+  if (speed === 'fast' || contextLength < 10000) {
+    return 'claude-3-5-haiku-20241022';
+  }
+  return 'claude-3-5-sonnet-20241022';
+};
+```
+
+## 7. Private Repository Access Issues
+
+### Scenario: Cannot access private GitHub repositories
+
+#### Symptoms
+```
+Error: Repository not found or you don't have access
+Status: 404
+```
+
+#### Debugging Steps
+1. **Verify GitHub token**
+   ```bash
+   # Test token permissions
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+     https://api.github.com/user/repos
+   ```
+
+2. **Check token scopes**
+   ```bash
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+     -I https://api.github.com/user
+   # Look for X-OAuth-Scopes header
+   ```
+
+#### Solutions
+```bash
+# Solution 1: Create token with correct scopes
+# Go to GitHub Settings → Developer settings → Personal access tokens
+# Required scopes: repo, read:org (for private repos)
+
+# Solution 2: Use GitHub App authentication
+# github-app-auth.js
+const { createAppAuth } = require("@octokit/auth-app");
+
+const auth = createAppAuth({
+  appId: process.env.GITHUB_APP_ID,
+  privateKey: process.env.GITHUB_PRIVATE_KEY,
+  installationId: process.env.GITHUB_INSTALLATION_ID,
+});
+
+# Solution 3: SSH key authentication for cloning
+ssh-keygen -t ed25519 -C "deepwikiopen@example.com"
+# Add to GitHub account settings
+```
+
+## 8. WebSocket Connection Failures
+
+### Scenario: Real-time updates not working, WebSocket disconnects
+
+#### Symptoms
+```
+WebSocket connection to 'ws://localhost:8000/ws' failed
+Error: Connection closed before established
+```
+
+#### Debugging Steps
+1. **Test WebSocket endpoint**
+   ```javascript
+   // Test WebSocket connection
+   const ws = new WebSocket('ws://localhost:8000/ws');
+   ws.onopen = () => console.log('Connected');
+   ws.onerror = (error) => console.error('Error:', error);
+   ws.onclose = (event) => console.log('Closed:', event.code, event.reason);
+   ```
+
+2. **Check server WebSocket implementation**
+   ```python
+   # Ensure WebSocket endpoint exists
+   @app.websocket("/ws")
+   async def websocket_endpoint(websocket: WebSocket):
+       await websocket.accept()
+       # Handle connection
+   ```
+
+#### Solutions
+```javascript
+// Solution 1: Implement reconnection logic
+class ReconnectingWebSocket {
+  constructor(url, options = {}) {
+    this.url = url;
+    this.reconnectInterval = options.reconnectInterval || 1000;
+    this.maxReconnectInterval = options.maxReconnectInterval || 30000;
+    this.reconnectDecay = options.reconnectDecay || 1.5;
+    this.reconnectAttempts = 0;
+    this.connect();
+  }
+  
+  connect() {
+    this.ws = new WebSocket(this.url);
+    
+    this.ws.onclose = () => {
+      this.reconnect();
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      this.ws.close();
+    };
+  }
+  
+  reconnect() {
+    this.reconnectAttempts++;
+    const timeout = Math.min(
+      this.reconnectInterval * Math.pow(this.reconnectDecay, this.reconnectAttempts),
+      this.maxReconnectInterval
+    );
+    
+    setTimeout(() => this.connect(), timeout);
+  }
+}
+
+// Solution 2: Use Socket.IO for better reliability
+const io = require('socket.io')(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  },
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+});
+```
+
+## 9. Rate Limiting Scenarios
+
+### Scenario: API rate limit exceeded errors
+
+#### Symptoms
+```
+Error: Rate limit exceeded. Please retry after 30 seconds.
+Status: 429 Too Many Requests
+```
+
+#### Debugging Steps
+1. **Monitor rate limit headers**
+   ```javascript
+   // Check response headers
+   response.headers.get('X-RateLimit-Limit')
+   response.headers.get('X-RateLimit-Remaining')
+   response.headers.get('X-RateLimit-Reset')
+   ```
+
+#### Solutions
+```javascript
+// Solution 1: Implement rate limit handling
+class RateLimiter {
+  constructor(maxRequests = 50, windowMs = 60000) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+    this.requests = [];
+  }
+  
+  async acquire() {
+    const now = Date.now();
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    
+    if (this.requests.length >= this.maxRequests) {
+      const oldestRequest = this.requests[0];
+      const waitTime = this.windowMs - (now - oldestRequest);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      return this.acquire();
+    }
+    
+    this.requests.push(now);
+  }
+}
+
+// Solution 2: Implement exponential backoff
+async function makeRequestWithRetry(fn, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (error.status === 429 && i < maxRetries - 1) {
+        const delay = Math.pow(2, i) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
+// Solution 3: Queue requests
+const pQueue = require('p-queue').default;
+const queue = new pQueue({ 
+  concurrency: 2, 
+  interval: 1000, 
+  intervalCap: 10 
+});
+```
+
+## 10. Common Error Messages and Solutions
+
+### Error: "Context length exceeded"
+
+#### Solution
+```javascript
+// Implement context window management
+const truncateContext = (messages, maxTokens = 150000) => {
+  let totalTokens = 0;
+  const truncated = [];
+  
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const tokens = estimateTokens(messages[i].content);
+    if (totalTokens + tokens > maxTokens) break;
+    totalTokens += tokens;
+    truncated.unshift(messages[i]);
+  }
+  
+  return truncated;
+};
+```
+
+### Error: "WebContainer initialization failed"
+
+#### Solution
+```javascript
+// Ensure proper WebContainer setup
+import { WebContainer } from '@webcontainer/api';
+
+let webcontainerInstance;
+
+async function initWebContainer() {
+  try {
+    webcontainerInstance = await WebContainer.boot();
+    console.log('WebContainer initialized');
+  } catch (error) {
+    console.error('Failed to initialize WebContainer:', error);
+    // Fallback to server-side execution
+    return initServerSideContainer();
+  }
+}
+```
+
+### Error: "Database connection timeout"
+
+#### Solution
+```python
+# Implement connection pooling and retry logic
+from sqlalchemy import create_engine
+from sqlalchemy.pool import QueuePool
+import time
+
+def create_db_engine(retry_count=3, retry_delay=5):
+    for attempt in range(retry_count):
+        try:
+            engine = create_engine(
+                DATABASE_URL,
+                poolclass=QueuePool,
+                pool_size=10,
+                max_overflow=20,
+                pool_timeout=30,
+                pool_recycle=3600
+            )
+            # Test connection
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            return engine
+        except Exception as e:
+            if attempt < retry_count - 1:
+                time.sleep(retry_delay)
+                continue
+            raise e
+```
+
+## Best Practices for Troubleshooting
+
+1. **Enable verbose logging**
+   ```bash
+   export DEBUG=deepwikiopen:*
+   export LOG_LEVEL=debug
+   ```
+
+2. **Use health check endpoints**
+   ```bash
+   curl http://localhost:8000/health
+   curl http://localhost:8000/api/status
+   ```
+
+3. **Monitor system resources**
+   ```bash
+   # Create monitoring script
+   #!/bin/bash
+   while true; do
+     echo "=== $(date) ==="
+     docker stats --no-stream
+     sleep 5
+   done
+   ```
+
+4. **Implement comprehensive error handling**
+   ```javascript
+   app.use((err, req, res, next) => {
+     console.error('Error details:', {
+       message: err.message,
+       stack: err.stack,
+       timestamp: new Date().toISOString(),
+       request: {
+         method: req.method,
+         url: req.url,
+         headers: req.headers
+       }
+     });
+     
+     res.status(err.status || 500).json({
+       error: err.message,
+       timestamp: new Date().toISOString(),
+       requestId: req.id
+     });
+   });
+   ```
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+1. Check the [GitHub Issues](https://github.com/deepwikiopen/deepwikiopen/issues)
+2. Enable debug logging and collect logs
+3. Provide system information:
+   ```bash
+   node --version
+   npm --version
+   docker --version
+   uname -a
+   ```
+4. Include minimal reproduction steps
+5. Join our [Discord community](https://discord.gg/deepwikiopen) for real-time support

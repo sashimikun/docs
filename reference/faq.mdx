@@ -1,0 +1,353 @@
+# Frequently Asked Questions
+
+## General Questions
+
+### What is DeepWiki?
+
+DeepWiki is an AI-powered documentation generator that transforms your codebase into comprehensive, searchable documentation. It analyzes your code structure, understands relationships between components, and generates clear, contextual documentation that stays in sync with your code.
+
+### How is DeepWiki different from traditional documentation tools?
+
+Unlike traditional tools that require manual documentation writing, DeepWiki:
+- Automatically generates documentation from your code
+- Understands code context and relationships
+- Updates documentation as your code changes
+- Provides AI-powered search and explanations
+- Works with multiple programming languages
+
+### What programming languages does DeepWiki support?
+
+DeepWiki currently supports:
+- JavaScript/TypeScript
+- Python
+- Java
+- Go
+- Rust
+- C/C++
+- Ruby
+- PHP
+- Swift
+- And more coming soon!
+
+### Can I use DeepWiki for commercial projects?
+
+Yes! DeepWiki is licensed for both personal and commercial use. Check our licensing section below for specific terms.
+
+## Installation and Setup
+
+### How do I install DeepWiki?
+
+Installation is simple with npm:
+
+```bash
+npm install -g deepwiki
+```
+
+Or using yarn:
+
+```bash
+yarn global add deepwiki
+```
+
+### What are the system requirements?
+
+- Node.js 16.0 or higher
+- 4GB RAM minimum (8GB recommended for large projects)
+- 500MB free disk space
+- Internet connection for AI features
+
+### How do I set up DeepWiki for my project?
+
+1. Navigate to your project root
+2. Run `deepwiki init`
+3. Follow the interactive setup wizard
+4. Configure your preferences in `.deepwiki/config.json`
+
+### Can I use DeepWiki in a CI/CD pipeline?
+
+Absolutely! DeepWiki supports CI/CD integration:
+
+```yaml
+# Example GitHub Actions workflow
+- name: Generate Documentation
+  run: |
+    npm install -g deepwiki
+    deepwiki generate --ci
+```
+
+## API Keys and Authentication
+
+### Do I need an API key to use DeepWiki?
+
+DeepWiki offers both free and premium features:
+- **Free tier**: Basic documentation generation, no API key required
+- **Premium features**: AI-powered search, advanced analysis, requires API key
+
+### How do I get an API key?
+
+1. Visit [deepwiki.ai/dashboard](https://deepwiki.ai/dashboard)
+2. Sign up for an account
+3. Navigate to API Keys section
+4. Generate your personal API key
+
+### Where do I put my API key?
+
+You have several options:
+
+```bash
+# Environment variable (recommended)
+export DEEPWIKI_API_KEY=your-api-key-here
+
+# Or in .env file
+DEEPWIKI_API_KEY=your-api-key-here
+
+# Or during initialization
+deepwiki init --api-key your-api-key-here
+```
+
+### Is my API key secure?
+
+Yes! DeepWiki:
+- Never stores API keys in generated documentation
+- Uses HTTPS for all API communications
+- Supports environment variable configuration
+- Excludes `.env` files from documentation by default
+
+## Model Selection and Costs
+
+### What AI models does DeepWiki use?
+
+DeepWiki supports multiple AI models:
+- **GPT-4**: Best quality, higher cost
+- **GPT-3.5**: Good balance of quality and cost
+- **Claude**: Excellent for technical documentation
+- **Local models**: Privacy-focused, no API costs
+
+### How much does it cost?
+
+Pricing depends on your usage:
+- **Free tier**: 10,000 tokens/month
+- **Starter**: $19/month for 100,000 tokens
+- **Professional**: $49/month for 500,000 tokens
+- **Enterprise**: Custom pricing
+
+### Can I control costs?
+
+Yes! DeepWiki provides cost controls:
+
+```json
+{
+  "ai": {
+    "monthlyBudget": 50,
+    "warningThreshold": 0.8,
+    "model": "gpt-3.5-turbo"
+  }
+}
+```
+
+### How do I estimate token usage?
+
+Rule of thumb:
+- Small project (< 10k LOC): ~50k tokens
+- Medium project (10k-100k LOC): ~200k tokens
+- Large project (> 100k LOC): ~500k+ tokens
+
+## Private Repository Support
+
+### Can DeepWiki work with private repositories?
+
+Yes! DeepWiki works perfectly with private repositories:
+- Runs locally on your machine
+- Never uploads code to external servers
+- Supports all git providers (GitHub, GitLab, Bitbucket)
+
+### Does my code leave my machine?
+
+By default, no. DeepWiki:
+- Processes code locally
+- Only sends anonymized prompts to AI providers
+- Can run entirely offline with local models
+
+### Can I self-host DeepWiki?
+
+Enterprise customers can self-host DeepWiki:
+- Full on-premise deployment
+- Air-gapped environment support
+- Custom model integration
+- Contact sales@deepwiki.ai for details
+
+## Performance and Scaling
+
+### How fast is documentation generation?
+
+Generation speed depends on:
+- Project size: ~1000 files/minute
+- AI model: GPT-4 slower but higher quality
+- Hardware: Faster with more CPU cores
+
+### Can DeepWiki handle large codebases?
+
+Yes! DeepWiki scales well:
+- Tested on codebases with 1M+ lines
+- Incremental updates for efficiency
+- Parallel processing support
+- Smart caching to reduce regeneration
+
+### How can I improve performance?
+
+Tips for better performance:
+
+```json
+{
+  "performance": {
+    "parallel": true,
+    "maxWorkers": 8,
+    "incremental": true,
+    "cache": true
+  }
+}
+```
+
+### Does DeepWiki support monorepos?
+
+Absolutely! DeepWiki has excellent monorepo support:
+- Configure multiple documentation sites
+- Cross-package linking
+- Shared configuration
+- Workspace-aware processing
+
+## Troubleshooting Common Issues
+
+### DeepWiki command not found
+
+If you get "command not found":
+
+```bash
+# Check installation
+npm list -g deepwiki
+
+# Reinstall if needed
+npm install -g deepwiki
+
+# Check PATH
+echo $PATH
+```
+
+### Documentation not updating
+
+Try these steps:
+1. Clear cache: `deepwiki clean`
+2. Force regenerate: `deepwiki generate --force`
+3. Check file patterns in config
+4. Verify git status for changes
+
+### AI features not working
+
+Common fixes:
+- Verify API key is set correctly
+- Check internet connection
+- Ensure API quota isn't exceeded
+- Try different AI model
+
+### Build errors
+
+For build issues:
+- Update Node.js to latest LTS
+- Clear npm cache: `npm cache clean --force`
+- Delete node_modules and reinstall
+- Check for conflicting global packages
+
+## Feature Requests and Roadmap
+
+### How can I request a feature?
+
+We love feedback! Submit feature requests:
+- GitHub Issues: [github.com/deepwiki/deepwiki/issues](https://github.com/deepwiki/deepwiki/issues)
+- Feature board: [deepwiki.ai/features](https://deepwiki.ai/features)
+- Community Discord: [discord.gg/deepwiki](https://discord.gg/deepwiki)
+
+### What's on the roadmap?
+
+Upcoming features:
+- **Q1 2024**: Real-time collaboration
+- **Q2 2024**: Video tutorials generation
+- **Q3 2024**: API playground integration
+- **Q4 2024**: Mobile app for documentation
+
+### Can I contribute to DeepWiki?
+
+Yes! We're open source:
+- Star us on GitHub
+- Submit pull requests
+- Improve documentation
+- Share templates and themes
+
+## Community and Support
+
+### Where can I get help?
+
+Multiple support channels:
+- 📚 Documentation: [docs.deepwiki.ai](https://docs.deepwiki.ai)
+- 💬 Discord: [discord.gg/deepwiki](https://discord.gg/deepwiki)
+- 🐛 Issues: [GitHub Issues](https://github.com/deepwiki/deepwiki/issues)
+- 📧 Email: support@deepwiki.ai
+
+### Is there a community?
+
+Join our growing community:
+- 5,000+ developers on Discord
+- Weekly office hours
+- Community showcases
+- Template marketplace
+
+### Do you offer training?
+
+Yes! We provide:
+- Free video tutorials
+- Live workshops (monthly)
+- Enterprise training sessions
+- Certification program (coming soon)
+
+## Licensing and Usage Rights
+
+### What license is DeepWiki under?
+
+DeepWiki uses a dual license:
+- **Community Edition**: MIT License
+- **Enterprise Edition**: Commercial license
+
+### Who owns the generated documentation?
+
+You do! Generated documentation is:
+- 100% owned by you
+- No licensing restrictions
+- Can be used commercially
+- Can be modified freely
+
+### Can I white-label DeepWiki?
+
+Enterprise customers can:
+- Remove DeepWiki branding
+- Custom themes and domains
+- Private npm registry
+- Contact sales for details
+
+### Are there usage limits?
+
+Limits by plan:
+- **Free**: 10k tokens/month, 3 projects
+- **Starter**: 100k tokens/month, 10 projects
+- **Pro**: 500k tokens/month, unlimited projects
+- **Enterprise**: No limits
+
+---
+
+## Still have questions?
+
+Can't find what you're looking for? We're here to help:
+
+- 📧 Email: support@deepwiki.ai
+- 💬 Live chat: Available on our website
+- 📞 Enterprise support: 1-800-DEEPWIKI
+
+Happy documenting! 🚀

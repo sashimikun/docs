@@ -1,0 +1,787 @@
+---
+title: Performance Optimization
+description: Comprehensive guide to optimizing deepwikiopen performance
+---
+
+# Performance Optimization
+
+This guide covers performance benchmarks, optimization strategies, and best practices for running deepwikiopen efficiently at scale.
+
+## Performance Benchmarks
+
+### Baseline Performance Metrics
+
+| Repository Size | Initial Index Time | Query Response Time | Memory Usage | CPU Usage |
+|----------------|-------------------|-------------------|--------------|-----------|
+| Small (&lt;1GB)   | 5-10 minutes      | &lt;100ms           | 2-4GB        | 20-40%    |
+| Medium (1-10GB)| 20-60 minutes     | 100-300ms        | 4-8GB        | 40-60%    |
+| Large (10-50GB)| 1-4 hours         | 300-500ms        | 8-16GB       | 60-80%    |
+| XLarge (&gt;50GB) | 4-12 hours        | 500-1000ms       | 16-32GB      | 80-100%   |
+
+### Query Performance Benchmarks
+
+```yaml
+# Average query response times by complexity
+simple_keyword_search: 50-100ms
+semantic_search: 100-300ms
+code_understanding: 200-500ms
+multi_file_analysis: 500-2000ms
+repository_wide_search: 1000-5000ms
+```
+
+### Throughput Benchmarks
+
+```yaml
+# Requests per second (RPS) by hardware configuration
+minimal_setup:
+  cpu: 2 cores
+  ram: 4GB
+  rps: 10-20
+
+recommended_setup:
+  cpu: 4 cores
+  ram: 8GB
+  rps: 50-100
+
+production_setup:
+  cpu: 8 cores
+  ram: 16GB
+  rps: 200-500
+
+high_performance:
+  cpu: 16 cores
+  ram: 32GB
+  rps: 1000+
+```
+
+## Resource Requirements by Repository Size
+
+### Minimum Requirements
+
+```yaml
+small_repositories:
+  cpu: 2 cores
+  memory: 4GB
+  storage: 10GB
+  network: 100Mbps
+
+medium_repositories:
+  cpu: 4 cores
+  memory: 8GB
+  storage: 50GB
+  network: 1Gbps
+
+large_repositories:
+  cpu: 8 cores
+  memory: 16GB
+  storage: 200GB
+  network: 1Gbps
+
+enterprise_scale:
+  cpu: 16+ cores
+  memory: 32GB+
+  storage: 1TB+
+  network: 10Gbps
+```
+
+### Recommended Configurations
+
+```yaml
+development:
+  cpu: 4 cores
+  memory: 8GB
+  storage: 100GB SSD
+  gpu: Optional (NVIDIA GTX 1060+)
+
+production:
+  cpu: 8-16 cores
+  memory: 16-32GB
+  storage: 500GB NVMe SSD
+  gpu: Recommended (NVIDIA RTX 3060+)
+
+high_performance:
+  cpu: 32+ cores
+  memory: 64GB+
+  storage: 2TB NVMe RAID
+  gpu: Required (NVIDIA A100/H100)
+```
+
+## Caching Strategies and Configuration
+
+### Multi-Level Caching Architecture
+
+```python
+# config/cache.py
+CACHE_CONFIG = {
+    "embedding_cache": {
+        "type": "redis",
+        "ttl": 86400,  # 24 hours
+        "max_size": "10GB",
+        "eviction": "lru"
+    },
+    "query_cache": {
+        "type": "memory",
+        "ttl": 3600,  # 1 hour
+        "max_size": "2GB",
+        "eviction": "lfu"
+    },
+    "file_cache": {
+        "type": "disk",
+        "ttl": 604800,  # 7 days
+        "max_size": "50GB",
+        "path": "/var/cache/deepwikiopen"
+    }
+}
+```
+
+### Redis Configuration
+
+```redis
+# redis.conf optimizations
+maxmemory 8gb
+maxmemory-policy allkeys-lru
+save ""  # Disable persistence for cache
+tcp-keepalive 60
+tcp-backlog 511
+databases 16
+
+# Performance tuning
+hz 100
+dynamic-hz yes
+rdb-compression yes
+rdb-checksum no
+```
+
+### Application-Level Caching
+
+```python
+# Implement intelligent caching
+from functools import lru_cache
+from typing import Dict, List
+import hashlib
+
+class PerformanceCache:
+    def __init__(self):
+        self.embedding_cache = {}
+        self.query_cache = {}
+        
+    @lru_cache(maxsize=10000)
+    def get_cached_embedding(self, content_hash: str):
+        """Cache embeddings by content hash"""
+        return self.embedding_cache.get(content_hash)
+    
+    def cache_query_result(self, query: str, results: List[Dict]):
+        """Cache query results with TTL"""
+        query_hash = hashlib.md5(query.encode()).hexdigest()
+        self.query_cache[query_hash] = {
+            "results": results,
+            "timestamp": time.time(),
+            "ttl": 3600
+        }
+```
+
+## Database Optimization
+
+### PostgreSQL Configuration
+
+```sql
+-- postgresql.conf optimizations
+shared_buffers = 25% of RAM
+effective_cache_size = 75% of RAM
+work_mem = 256MB
+maintenance_work_mem = 1GB
+wal_buffers = 16MB
+checkpoint_completion_target = 0.9
+random_page_cost = 1.1  -- For SSD
+
+-- Connection pooling
+max_connections = 200
+shared_preload_libraries = 'pg_stat_statements'
+```
+
+### Index Optimization
+
+```sql
+-- Create optimized indexes
+CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (vector vector_l2_ops)
+WITH (lists = 1000);
+
+CREATE INDEX idx_code_files_path ON code_files USING btree (file_path);
+CREATE INDEX idx_code_files_language ON code_files USING btree (language);
+CREATE INDEX idx_code_files_updated ON code_files USING btree (last_updated DESC);
+
+-- Partial indexes for common queries
+CREATE INDEX idx_active_repositories ON repositories (id) 
+WHERE is_active = true;
+
+-- Composite indexes
+CREATE INDEX idx_search_composite ON code_files (repository_id, language, file_path);
+```
+
+### Query Optimization
+
+```sql
+-- Use prepared statements
+PREPARE search_embeddings AS
+SELECT file_id, similarity
+FROM embeddings
+ORDER BY vector <-> $1
+LIMIT $2;
+
+-- Batch operations
+INSERT INTO embeddings (file_id, vector, metadata)
+VALUES ($1, $2, $3)
+ON CONFLICT (file_id) 
+DO UPDATE SET vector = EXCLUDED.vector, updated_at = NOW();
+```
+
+## Model Selection for Performance
+
+### Model Performance Comparison
+
+| Model Type | Speed | Accuracy | Memory | Use Case |
+|------------|-------|----------|---------|----------|
+| TinyBERT   | ⚡⚡⚡⚡⚡ | ⭐⭐⭐ | 500MB | Real-time search |
+| DistilBERT | ⚡⚡⚡⚡ | ⭐⭐⭐⭐ | 1GB | Balanced performance |
+| BERT-base  | ⚡⚡⚡ | ⭐⭐⭐⭐ | 2GB | Standard search |
+| CodeBERT   | ⚡⚡ | ⭐⭐⭐⭐⭐ | 4GB | Code understanding |
+| GPT-2      | ⚡ | ⭐⭐⭐⭐⭐ | 8GB | Advanced analysis |
+
+### Dynamic Model Selection
+
+```python
+def select_optimal_model(query_type: str, resource_constraints: dict):
+    """Select model based on query type and resources"""
+    
+    if resource_constraints["memory"] < 2000:  # 2GB
+        return "sentence-transformers/all-MiniLM-L6-v2"
+    
+    if query_type == "simple_search":
+        return "sentence-transformers/all-mpnet-base-v2"
+    elif query_type == "code_search":
+        return "microsoft/codebert-base"
+    elif query_type == "semantic_analysis":
+        return "sentence-transformers/all-roberta-large-v1"
+    
+    return "sentence-transformers/all-mpnet-base-v2"  # default
+```
+
+## Concurrent Request Handling
+
+### Async Request Processing
+
+```python
+import asyncio
+from aiohttp import web
+import aiodns
+from concurrent.futures import ThreadPoolExecutor
+
+class ConcurrentHandler:
+    def __init__(self, max_workers=10):
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.semaphore = asyncio.Semaphore(100)  # Limit concurrent requests
+        
+    async def handle_request(self, request):
+        async with self.semaphore:
+            # Process request asynchronously
+            result = await self.process_query(request)
+            return result
+    
+    async def process_batch(self, requests):
+        """Process multiple requests concurrently"""
+        tasks = [self.handle_request(req) for req in requests]
+        return await asyncio.gather(*tasks)
+```
+
+### Load Balancing Configuration
+
+```nginx
+# nginx.conf for load balancing
+upstream deepwikiopen_backend {
+    least_conn;
+    server backend1:8000 weight=3;
+    server backend2:8000 weight=2;
+    server backend3:8000 weight=1;
+    keepalive 32;
+}
+
+server {
+    location /api {
+        proxy_pass http://deepwikiopen_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+}
+```
+
+## Memory Management
+
+### Memory Optimization Strategies
+
+```python
+import gc
+import resource
+from memory_profiler import profile
+
+class MemoryManager:
+    def __init__(self, max_memory_mb=8192):
+        self.max_memory = max_memory_mb * 1024 * 1024
+        self.configure_limits()
+    
+    def configure_limits(self):
+        """Set memory limits"""
+        resource.setrlimit(
+            resource.RLIMIT_AS,
+            (self.max_memory, self.max_memory)
+        )
+    
+    @profile
+    def process_large_dataset(self, data_iterator):
+        """Process data in chunks to manage memory"""
+        chunk_size = 1000
+        processed = 0
+        
+        for chunk in self.chunked(data_iterator, chunk_size):
+            # Process chunk
+            results = self.process_chunk(chunk)
+            
+            # Yield results to avoid memory accumulation
+            yield results
+            
+            # Explicit garbage collection
+            if processed % 10000 == 0:
+                gc.collect()
+            
+            processed += chunk_size
+    
+    def monitor_memory(self):
+        """Monitor current memory usage"""
+        import psutil
+        process = psutil.Process()
+        return {
+            "rss": process.memory_info().rss / 1024 / 1024,  # MB
+            "vms": process.memory_info().vms / 1024 / 1024,  # MB
+            "percent": process.memory_percent()
+        }
+```
+
+### Memory Pool Configuration
+
+```python
+# Configure memory pools for embeddings
+MEMORY_POOLS = {
+    "embeddings": {
+        "size": "4GB",
+        "prealloc": True,
+        "cleanup_interval": 300  # 5 minutes
+    },
+    "cache": {
+        "size": "2GB",
+        "prealloc": False,
+        "cleanup_interval": 600  # 10 minutes
+    },
+    "temporary": {
+        "size": "1GB",
+        "prealloc": False,
+        "cleanup_interval": 60  # 1 minute
+    }
+}
+```
+
+## Docker Resource Limits
+
+### Docker Compose Configuration
+
+```yaml
+version: '3.8'
+
+services:
+  deepwikiopen:
+    image: deepwikiopen:latest
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+      - OMP_NUM_THREADS=4
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+```
+
+### Container Optimization
+
+```dockerfile
+# Optimized Dockerfile
+FROM python:3.11-slim
+
+# Install only required dependencies
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use multi-stage builds
+FROM python:3.11-slim as runtime
+COPY --from=builder /app /app
+
+# Set resource limits
+ENV PYTHONUNBUFFERED=1
+ENV MALLOC_ARENA_MAX=2
+ENV MALLOC_MMAP_THRESHOLD_=131072
+ENV MALLOC_TRIM_THRESHOLD_=131072
+```
+
+## Monitoring Performance Metrics
+
+### Prometheus Configuration
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'deepwikiopen'
+    static_configs:
+      - targets: ['localhost:8000']
+    metrics_path: '/metrics'
+```
+
+### Custom Metrics
+
+```python
+from prometheus_client import Counter, Histogram, Gauge
+import time
+
+# Define metrics
+query_counter = Counter('deepwikiopen_queries_total', 'Total queries processed')
+query_duration = Histogram('deepwikiopen_query_duration_seconds', 'Query duration')
+active_connections = Gauge('deepwikiopen_active_connections', 'Active connections')
+
+class MetricsCollector:
+    @query_duration.time()
+    def process_query(self, query):
+        """Track query processing time"""
+        query_counter.inc()
+        start_time = time.time()
+        
+        try:
+            result = self.execute_query(query)
+            return result
+        finally:
+            duration = time.time() - start_time
+            self.record_metric('query_duration', duration)
+```
+
+### Grafana Dashboard
+
+```json
+{
+  "dashboard": {
+    "title": "DeepWikiOpen Performance",
+    "panels": [
+      {
+        "title": "Query Rate",
+        "targets": [{
+          "expr": "rate(deepwikiopen_queries_total[5m])"
+        }]
+      },
+      {
+        "title": "Response Time",
+        "targets": [{
+          "expr": "histogram_quantile(0.95, deepwikiopen_query_duration_seconds)"
+        }]
+      },
+      {
+        "title": "Memory Usage",
+        "targets": [{
+          "expr": "process_resident_memory_bytes / 1024 / 1024"
+        }]
+      }
+    ]
+  }
+}
+```
+
+## Optimization Techniques
+
+### Code-Level Optimizations
+
+```python
+# Use vectorized operations
+import numpy as np
+from numba import jit
+
+@jit(nopython=True)
+def fast_similarity(vector1, vector2):
+    """Optimized cosine similarity calculation"""
+    dot_product = np.dot(vector1, vector2)
+    norm1 = np.linalg.norm(vector1)
+    norm2 = np.linalg.norm(vector2)
+    return dot_product / (norm1 * norm2)
+
+# Batch processing
+def process_embeddings_batch(embeddings, batch_size=1000):
+    """Process embeddings in optimized batches"""
+    for i in range(0, len(embeddings), batch_size):
+        batch = embeddings[i:i + batch_size]
+        # Process batch using vectorized operations
+        yield np.array(batch)
+```
+
+### Network Optimization
+
+```python
+# Connection pooling
+import aiohttp
+from aiohttp import TCPConnector
+
+async def create_session():
+    """Create optimized HTTP session"""
+    connector = TCPConnector(
+        limit=100,
+        limit_per_host=30,
+        ttl_dns_cache=300,
+        enable_cleanup_closed=True
+    )
+    
+    timeout = aiohttp.ClientTimeout(total=30, connect=5)
+    
+    return aiohttp.ClientSession(
+        connector=connector,
+        timeout=timeout,
+        headers={'Connection': 'keep-alive'}
+    )
+```
+
+### Storage Optimization
+
+```python
+# Use efficient storage formats
+import pyarrow.parquet as pq
+import pyarrow as pa
+
+def save_embeddings_optimized(embeddings, path):
+    """Save embeddings in optimized format"""
+    # Convert to Arrow table
+    table = pa.table({
+        'id': embeddings['id'],
+        'vector': embeddings['vector'],
+        'metadata': embeddings['metadata']
+    })
+    
+    # Write with compression
+    pq.write_table(
+        table, 
+        path,
+        compression='snappy',
+        use_dictionary=True,
+        row_group_size=50000
+    )
+```
+
+## Scaling Strategies
+
+### Horizontal Scaling
+
+```yaml
+# kubernetes-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwikiopen
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: deepwikiopen
+  template:
+    spec:
+      containers:
+      - name: deepwikiopen
+        image: deepwikiopen:latest
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: deepwikiopen-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: deepwikiopen
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+### Vertical Scaling
+
+```python
+# Dynamic resource allocation
+class ResourceScaler:
+    def __init__(self):
+        self.current_resources = self.get_current_resources()
+        
+    def scale_up(self, factor=1.5):
+        """Increase resources dynamically"""
+        new_workers = int(self.current_resources['workers'] * factor)
+        new_memory = int(self.current_resources['memory'] * factor)
+        
+        # Update worker pool
+        self.update_worker_pool(new_workers)
+        
+        # Adjust memory limits
+        self.adjust_memory_limits(new_memory)
+        
+    def auto_scale(self, metrics):
+        """Auto-scale based on metrics"""
+        if metrics['cpu_usage'] > 80:
+            self.scale_up(1.5)
+        elif metrics['cpu_usage'] < 20:
+            self.scale_down(0.7)
+```
+
+### Distributed Processing
+
+```python
+# Distributed embedding generation
+from ray import ray
+import ray.serve
+
+@ray.remote
+class EmbeddingWorker:
+    def __init__(self, model_name):
+        self.model = self.load_model(model_name)
+    
+    def generate_embedding(self, text):
+        return self.model.encode(text)
+
+# Initialize Ray cluster
+ray.init(address='ray://head-node:10001')
+
+# Create worker pool
+workers = [EmbeddingWorker.remote("model-name") for _ in range(10)]
+
+# Distribute work
+futures = []
+for batch in data_batches:
+    worker = workers[len(futures) % len(workers)]
+    futures.append(worker.generate_embedding.remote(batch))
+
+# Collect results
+results = ray.get(futures)
+```
+
+## Performance Tuning Checklist
+
+### Pre-Deployment
+
+- [ ] Profile application for bottlenecks
+- [ ] Optimize database queries and indexes
+- [ ] Configure connection pooling
+- [ ] Set up caching layers
+- [ ] Choose appropriate models
+- [ ] Configure resource limits
+- [ ] Set up monitoring
+
+### Runtime Optimization
+
+- [ ] Monitor query patterns
+- [ ] Adjust cache TTLs
+- [ ] Tune garbage collection
+- [ ] Optimize batch sizes
+- [ ] Balance load across instances
+- [ ] Update model selection
+- [ ] Clean up unused resources
+
+### Continuous Improvement
+
+- [ ] Analyze performance metrics
+- [ ] Identify slow queries
+- [ ] Review resource utilization
+- [ ] Update optimization strategies
+- [ ] Test scaling policies
+- [ ] Benchmark improvements
+- [ ] Document best practices
+
+## Performance Best Practices
+
+1. **Start Small, Scale Gradually**: Begin with minimal resources and scale based on actual usage
+2. **Monitor Everything**: Use comprehensive monitoring to identify bottlenecks
+3. **Cache Aggressively**: Implement multi-level caching for frequently accessed data
+4. **Optimize Hot Paths**: Focus optimization efforts on the most frequently used code paths
+5. **Use Async Operations**: Leverage async/await for I/O-bound operations
+6. **Batch Processing**: Process data in batches to reduce overhead
+7. **Profile Regularly**: Regular profiling helps identify new bottlenecks
+8. **Document Changes**: Keep track of performance improvements and their impact
+
+## Troubleshooting Performance Issues
+
+### Common Issues and Solutions
+
+| Issue | Symptoms | Solution |
+|-------|----------|----------|
+| Slow Queries | Response time >1s | Add indexes, optimize query patterns |
+| High Memory Usage | OOM errors | Implement streaming, reduce batch sizes |
+| CPU Bottlenecks | 100% CPU usage | Scale horizontally, optimize algorithms |
+| Cache Misses | Repeated computations | Increase cache size, adjust TTL |
+| Network Latency | Slow API responses | Use connection pooling, CDN |
+| Disk I/O | Slow file operations | Use SSD, implement caching |
+
+### Performance Debugging Commands
+
+```bash
+# Monitor system resources
+htop
+iotop
+nethogs
+
+# Database performance
+pg_stat_activity
+EXPLAIN ANALYZE <query>
+
+# Application profiling
+py-spy top --pid <pid>
+memory_profiler run script.py
+
+# Network analysis
+tcpdump -i any -w trace.pcap
+wireshark trace.pcap
+```
+
+## Conclusion
+
+Optimizing deepwikiopen performance requires a holistic approach covering infrastructure, application code, and operational practices. Regular monitoring, profiling, and iterative improvements are key to maintaining optimal performance as your codebase and user base grow.

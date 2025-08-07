@@ -1,0 +1,1114 @@
+---
+title: "Authorization Mode"
+description: "Secure your DeepWiki-Open instance with authorization mode - requiring authentication codes for wiki generation and API access"
+---
+
+Authorization mode provides access control for your DeepWiki-Open instance by requiring users to enter a secret authorization code before generating wikis. This is essential for production deployments, shared environments, or when you want to control who can generate documentation from repositories.
+
+## What is Authorization Mode?
+
+Authorization mode is a simple but effective security feature that:
+
+<CardGroup cols={2}>
+<Card title="Frontend Protection" icon="shield-check">
+  Users must enter an authorization code in the web interface
+</Card>
+
+<Card title="API Security" icon="lock">
+  All API requests must include the authorization code
+</Card>
+
+<Card title="Resource Control" icon="gauge">
+  Prevents unauthorized usage of AI provider quotas
+</Card>
+
+<Card title="Access Logging" icon="file-text">
+  Tracks and logs authentication attempts
+</Card>
+</CardGroup>
+
+## When to Use Authorization Mode
+
+### Recommended Scenarios
+
+<AccordionGroup>
+<Accordion title="Production Deployments">
+**Always enable authorization mode in production environments:**
+- Public-facing instances
+- Shared hosting environments
+- Corporate deployments
+- Any instance accessible from the internet
+
+**Benefits:**
+- Prevents unauthorized access to AI providers
+- Controls API usage and costs
+- Maintains audit trail of access
+</Accordion>
+
+<Accordion title="Team Collaboration">
+**Shared development environments:**
+- Team wikis for private repositories
+- Collaborative documentation projects
+- Educational environments
+- Demo instances with controlled access
+
+**Benefits:**
+- Ensures only authorized team members can generate docs
+- Prevents accidental quota exhaustion
+- Maintains consistent access control
+</Accordion>
+
+<Accordion title="Cost Management">
+**AI provider quota protection:**
+- Limited API budgets
+- Pay-per-use providers
+- Rate-limited accounts
+- Enterprise cost control
+
+**Benefits:**
+- Prevents unexpected charges
+- Controls usage patterns
+- Enables usage tracking per authorization
+</Accordion>
+</AccordionGroup>
+
+### When NOT to Use Authorization Mode
+
+<Info>
+Authorization mode can be disabled for:
+- Local development instances
+- Personal single-user setups
+- Internal networks with existing security
+- Testing and experimentation environments
+</Info>
+
+## Configuration
+
+### Environment Variables
+
+Configure authorization mode using these environment variables:
+
+<ParamField type="boolean" required>
+  DEEPWIKI_AUTH_MODE
+</ParamField>
+Enable or disable authorization mode.
+
+<ParamField type="string" required>
+  DEEPWIKI_AUTH_CODE
+</ParamField>
+Secret authorization code required for access.
+
+### Basic Configuration
+
+<Steps>
+<Step title="Set Environment Variables">
+Add to your `.env` file:
+
+```env
+# Enable authorization mode
+DEEPWIKI_AUTH_MODE=true
+
+# Set your secret authorization code
+DEEPWIKI_AUTH_CODE=your-secure-code-here
+```
+
+<Warning>
+Choose a strong, unique authorization code. Avoid common passwords or easily guessable codes.
+</Warning>
+</Step>
+
+<Step title="Restart Services">
+Authorization mode requires a full restart:
+
+<Tabs>
+<Tab title="Docker">
+```bash
+# Stop containers
+docker-compose down
+
+# Start with new configuration
+docker-compose up -d
+
+# Verify authorization mode is enabled
+docker-compose logs api | grep "Authorization"
+```
+</Tab>
+
+<Tab title="Manual Setup">
+```bash
+# Stop backend API
+pkill -f "python -m api.main"
+
+# Stop frontend
+pkill -f "npm run dev"
+
+# Start backend with new configuration
+python -m api.main &
+
+# Start frontend
+npm run dev &
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Verify Configuration">
+Check authorization status:
+
+```bash
+curl -X GET "http://localhost:8001/auth/status"
+```
+
+Expected response:
+```json
+{
+  "auth_required": true
+}
+```
+
+<Check>
+Server logs should show: "Authorization mode: ENABLED"
+</Check>
+</Step>
+</Steps>
+
+### Advanced Configuration
+
+<CodeGroup>
+```env Production Environment
+# Production authorization settings
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=prod-secure-auth-2024-XYZ789
+
+# Additional security settings
+NODE_ENV=production
+LOG_LEVEL=WARNING
+LOG_SENSITIVE_DATA=false
+
+# Server configuration
+SERVER_BASE_URL=https://deepwiki.yourdomain.com
+PORT=8001
+```
+
+```env Development Environment
+# Development with light authorization
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=dev-auth-123
+
+# Development settings
+NODE_ENV=development
+LOG_LEVEL=DEBUG
+LOG_SENSITIVE_DATA=true
+
+# Local server configuration
+SERVER_BASE_URL=http://localhost:8001
+PORT=8001
+```
+
+```env Team Shared Environment
+# Team authorization settings
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=team-wiki-access-2024
+
+# Shared environment configuration
+NODE_ENV=production
+LOG_LEVEL=INFO
+
+# Team server settings
+SERVER_BASE_URL=https://team-wiki.company.com
+PORT=8001
+```
+</CodeGroup>
+
+## Frontend Usage
+
+### Authorization Code Input
+
+When authorization mode is enabled, users see an authorization code input field:
+
+<div className="border border-gray-200 rounded-lg p-4 my-4">
+  <div className="text-sm text-gray-600 mb-2">Authorization Required</div>
+  <input 
+    type="password" 
+    placeholder="Enter authorization code"
+    className="w-full px-3 py-2 border rounded-md"
+    disabled
+  />
+  <div className="text-xs text-gray-500 mt-1">
+    This code is required to generate wikis
+  </div>
+</div>
+
+### User Experience Flow
+
+<Steps>
+<Step title="User Access">
+User visits the DeepWiki-Open interface and sees:
+- Normal repository URL input
+- Authorization code field (when mode is enabled)
+- Clear indication that authorization is required
+</Step>
+
+<Step title="Code Entry">
+User enters the authorization code:
+- Code is masked (password field)
+- Real-time validation (optional)
+- Clear error messages for invalid codes
+</Step>
+
+<Step title="Wiki Generation">
+After successful authorization:
+- Normal wiki generation flow continues
+- Code is included in API requests automatically
+- User doesn't need to re-enter code for the session
+</Step>
+</Steps>
+
+### Frontend Implementation
+
+The frontend automatically detects authorization mode:
+
+```javascript
+// Authorization status check
+const checkAuthStatus = async () => {
+  const response = await fetch('/api/auth/status');
+  const { auth_required } = await response.json();
+  
+  if (auth_required) {
+    // Show authorization code input
+    setShowAuthInput(true);
+  }
+};
+
+// Authorization validation
+const validateAuthCode = async (code) => {
+  const response = await fetch('/api/auth/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code })
+  });
+  
+  const { success } = await response.json();
+  return success;
+};
+```
+
+## API Usage
+
+### Including Authorization Codes
+
+All API requests must include the authorization code when mode is enabled:
+
+<RequestExample>
+```bash cURL
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/facebook/react",
+    "model_provider": "google",
+    "authorization_code": "your-secure-code-here"
+  }'
+```
+
+```python Python
+import requests
+
+# Wiki generation with authorization
+response = requests.post("http://localhost:8001/wiki/generate", json={
+    "repo_url": "https://github.com/facebook/react",
+    "model_provider": "google",
+    "authorization_code": "your-secure-code-here"
+})
+
+if response.status_code == 401:
+    print("Invalid authorization code")
+else:
+    wiki_data = response.json()
+```
+
+```javascript JavaScript
+// API request with authorization
+const generateWiki = async (repoUrl, authCode) => {
+  try {
+    const response = await fetch('/api/wiki/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        model_provider: 'google',
+        authorization_code: authCode
+      })
+    });
+    
+    if (response.status === 401) {
+      throw new Error('Invalid authorization code');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Wiki generation failed:', error);
+    throw error;
+  }
+};
+```
+</RequestExample>
+
+### Authorization Validation Endpoint
+
+Test authorization codes before use:
+
+<RequestExample>
+```bash Validate Code
+curl -X POST "http://localhost:8001/auth/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "your-secure-code-here"
+  }'
+```
+
+```python Python Validation
+import requests
+
+def validate_auth_code(code):
+    response = requests.post("http://localhost:8001/auth/validate", 
+                           json={"code": code})
+    result = response.json()
+    return result.get("success", False)
+
+# Usage
+if validate_auth_code("test-code"):
+    print("Authorization code is valid")
+else:
+    print("Invalid authorization code")
+```
+
+```javascript JavaScript Validation
+const validateAuthCode = async (code) => {
+  const response = await fetch('/api/auth/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code })
+  });
+  
+  const { success } = await response.json();
+  return success;
+};
+```
+</RequestExample>
+
+<ResponseExample>
+```json Valid Code
+{
+  "success": true
+}
+```
+
+```json Invalid Code  
+{
+  "success": false
+}
+```
+</ResponseExample>
+
+## Security Considerations
+
+### Authorization Code Security
+
+<AccordionGroup>
+<Accordion title="Code Generation Best Practices">
+**Strong authorization codes:**
+```bash
+# Good examples
+team-wiki-2024-XRT789-secure
+prod-deepwiki-auth-94KL23P
+company-docs-access-2024-QW45
+
+# Avoid these
+123456
+password
+admin
+test
+deepwiki
+```
+
+**Generation methods:**
+```bash
+# Generate random codes
+openssl rand -hex 16
+# Output: a3f7c9e2b4d8f6a1c5e9b7d3f8a2c6e4
+
+# Generate pronounceable codes
+openssl rand -base64 12 | tr -d "=+/" | cut -c1-16
+# Output: kH7mP9qR3sL4wX8t
+
+# Custom format
+echo "wiki-$(date +%Y)-$(openssl rand -hex 4)"
+# Output: wiki-2024-7a8b9c2d
+```
+</Accordion>
+
+<Accordion title="Code Storage and Rotation">
+**Secure storage:**
+- Store codes in environment variables, not source code
+- Use secrets management in production (AWS Secrets Manager, Azure Key Vault)
+- Restrict file permissions on `.env` files (`chmod 600`)
+- Never commit authorization codes to version control
+
+**Regular rotation:**
+```bash
+# Rotation schedule
+# - Development: Monthly
+# - Staging: Bi-weekly  
+# - Production: Weekly or after security incidents
+
+# Rotation process:
+# 1. Generate new authorization code
+# 2. Test with new code in staging
+# 3. Update production environment variables
+# 4. Restart services
+# 5. Notify authorized users
+# 6. Monitor for authentication failures
+```
+
+**Code management:**
+```bash
+# Environment-specific codes
+DEEPWIKI_AUTH_CODE_DEV=dev-auth-code-123
+DEEPWIKI_AUTH_CODE_STAGING=staging-auth-456
+DEEPWIKI_AUTH_CODE_PROD=prod-auth-789
+
+# Use deployment scripts to select appropriate code
+export DEEPWIKI_AUTH_CODE=${DEEPWIKI_AUTH_CODE_PROD}
+```
+</Accordion>
+
+<Accordion title="Network Security">
+**HTTPS requirement:**
+```nginx
+# Always use HTTPS in production
+server {
+    listen 443 ssl;
+    server_name deepwiki.yourdomain.com;
+    
+    # SSL configuration
+    ssl_certificate /path/to/certificate.crt;
+    ssl_certificate_key /path/to/private.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    
+    location / {
+        proxy_pass http://localhost:8001;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name deepwiki.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+**Access restrictions:**
+```bash
+# Firewall rules for additional security
+# Only allow specific IPs to access API directly
+iptables -A INPUT -p tcp --dport 8001 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8001 -j DROP
+
+# Allow HTTPS from anywhere (proxied)
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+```
+</Accordion>
+</AccordionGroup>
+
+### Attack Prevention
+
+<Warning>
+Authorization mode provides basic access control but is not a complete security solution. Consider additional measures:
+
+- Rate limiting to prevent brute force attacks
+- IP whitelisting for sensitive environments  
+- Web Application Firewall (WAF) for production
+- Regular security audits and monitoring
+- Multi-factor authentication for critical deployments
+</Warning>
+
+**Rate limiting example:**
+```python
+# Basic rate limiting implementation
+from collections import defaultdict
+from time import time
+
+auth_attempts = defaultdict(list)
+MAX_ATTEMPTS = 5
+WINDOW_SECONDS = 300  # 5 minutes
+
+def check_rate_limit(ip_address):
+    now = time()
+    attempts = auth_attempts[ip_address]
+    
+    # Remove old attempts
+    attempts[:] = [t for t in attempts if now - t < WINDOW_SECONDS]
+    
+    if len(attempts) >= MAX_ATTEMPTS:
+        return False  # Rate limited
+    
+    attempts.append(now)
+    return True
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+<Accordion title="Authorization Code Not Working">
+**Symptoms:**
+- "Invalid authorization code" errors
+- Authentication consistently fails
+- API returns 401 status codes
+
+**Solutions:**
+1. **Verify environment variables:**
+   ```bash
+   echo "Auth Mode: $DEEPWIKI_AUTH_MODE"
+   echo "Auth Code: $DEEPWIKI_AUTH_CODE"
+   ```
+
+2. **Check code formatting:**
+   ```bash
+   # Ensure no extra spaces or characters
+   export DEEPWIKI_AUTH_CODE=$(echo "$DEEPWIKI_AUTH_CODE" | xargs)
+   ```
+
+3. **Restart services completely:**
+   ```bash
+   # Kill all processes
+   pkill -f "python -m api.main"
+   pkill -f "npm"
+   
+   # Wait a moment, then restart
+   sleep 2
+   python -m api.main &
+   npm run dev &
+   ```
+
+4. **Test with curl:**
+   ```bash
+   curl -X POST "http://localhost:8001/auth/validate" \
+     -H "Content-Type: application/json" \
+     -d '{"code": "your-exact-code-here"}'
+   ```
+</Accordion>
+
+<Accordion title="Frontend Not Showing Auth Input">
+**Symptoms:**
+- Authorization mode enabled but no auth input field
+- Frontend behaves as if authorization is disabled
+- No indication that auth is required
+
+**Solutions:**
+1. **Check API status endpoint:**
+   ```bash
+   curl -X GET "http://localhost:8001/auth/status"
+   ```
+
+2. **Verify frontend API connection:**
+   ```javascript
+   // Check in browser console
+   fetch('/api/auth/status')
+     .then(r => r.json())
+     .then(console.log);
+   ```
+
+3. **Clear browser cache:**
+   ```bash
+   # Or use browser dev tools:
+   # Application > Storage > Clear Site Data
+   ```
+
+4. **Check Next.js API routes:**
+   ```bash
+   # Verify routes exist
+   ls -la src/app/api/auth/
+   ```
+</Accordion>
+
+<Accordion title="API Forwarding Issues">
+**Symptoms:**
+- Frontend shows auth required but validation fails
+- Network errors in browser console
+- Proxy/forwarding failures
+
+**Solutions:**
+1. **Check SERVER_BASE_URL:**
+   ```bash
+   echo "Server URL: $SERVER_BASE_URL"
+   # Should match your backend API location
+   ```
+
+2. **Test direct API access:**
+   ```bash
+   # Test backend directly
+   curl -X GET "http://localhost:8001/auth/status"
+   
+   # Test frontend proxy
+   curl -X GET "http://localhost:3000/api/auth/status"
+   ```
+
+3. **Verify port configuration:**
+   ```bash
+   # Backend should be running on PORT
+   netstat -tulpn | grep :8001
+   
+   # Frontend should be running on 3000
+   netstat -tulpn | grep :3000
+   ```
+</Accordion>
+</AccordionGroup>
+
+### Debugging Steps
+
+<Steps>
+<Step title="Check Configuration">
+```bash
+# Verify environment variables are loaded
+python -c "
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+print('Auth Mode:', os.getenv('DEEPWIKI_AUTH_MODE'))
+print('Auth Code Set:', bool(os.getenv('DEEPWIKI_AUTH_CODE')))
+print('Server URL:', os.getenv('SERVER_BASE_URL'))
+"
+```
+</Step>
+
+<Step title="Test API Endpoints">
+```bash
+# Test status endpoint
+curl -v -X GET "http://localhost:8001/auth/status"
+
+# Test validation endpoint
+curl -v -X POST "http://localhost:8001/auth/validate" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "test-code"}'
+
+# Test wiki generation (should require auth)
+curl -v -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{"repo_url": "https://github.com/octocat/Hello-World", "model_provider": "google"}'
+```
+</Step>
+
+<Step title="Check Logs">
+```bash
+# Backend logs
+tail -f api/logs/application.log
+
+# Look for:
+# - "Authorization mode: ENABLED/DISABLED"
+# - Authentication attempt logs
+# - Error messages related to auth
+```
+</Step>
+
+<Step title="Frontend Debugging">
+```javascript
+// In browser console
+// Check authorization status
+fetch('/api/auth/status').then(r => r.json()).then(console.log);
+
+// Test validation
+fetch('/api/auth/validate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ code: 'test-code' })
+}).then(r => r.json()).then(console.log);
+```
+</Step>
+</Steps>
+
+## Production Deployment
+
+### Docker Configuration
+
+<CodeGroup>
+```yaml docker-compose.yml
+services:
+  deepwiki-api:
+    build: .
+    environment:
+      # Authorization configuration
+      - DEEPWIKI_AUTH_MODE=true
+      - DEEPWIKI_AUTH_CODE=${DEEPWIKI_AUTH_CODE}
+      
+      # API keys
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Server configuration
+      - PORT=8001
+      - SERVER_BASE_URL=https://api.deepwiki.yourdomain.com
+      
+      # Security settings
+      - NODE_ENV=production
+      - LOG_LEVEL=WARNING
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    
+  deepwiki-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    environment:
+      - SERVER_BASE_URL=https://api.deepwiki.yourdomain.com
+      - NEXT_PUBLIC_API_URL=https://api.deepwiki.yourdomain.com
+    ports:
+      - "3000:3000"
+    depends_on:
+      - deepwiki-api
+    restart: unless-stopped
+```
+
+```env .env.production
+# Production authorization settings
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=prod-secure-auth-2024-XYZ789
+
+# API Keys
+GOOGLE_API_KEY=your_production_google_key
+OPENAI_API_KEY=your_production_openai_key
+
+# Server configuration  
+SERVER_BASE_URL=https://api.deepwiki.yourdomain.com
+PORT=8001
+
+# Security
+NODE_ENV=production
+LOG_LEVEL=WARNING
+LOG_SENSITIVE_DATA=false
+```
+</CodeGroup>
+
+### Kubernetes Deployment
+
+<CodeGroup>
+```yaml deepwiki-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: deepwiki-auth
+type: Opaque
+stringData:
+  auth-code: "prod-secure-auth-2024-XYZ789"
+  google-api-key: "your_google_api_key"
+  openai-api-key: "your_openai_api_key"
+```
+
+```yaml deepwiki-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwiki-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: deepwiki-api
+  template:
+    metadata:
+      labels:
+        app: deepwiki-api
+    spec:
+      containers:
+      - name: api
+        image: deepwiki/api:latest
+        ports:
+        - containerPort: 8001
+        env:
+        - name: DEEPWIKI_AUTH_MODE
+          value: "true"
+        - name: DEEPWIKI_AUTH_CODE
+          valueFrom:
+            secretKeyRef:
+              name: deepwiki-auth
+              key: auth-code
+        - name: GOOGLE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: deepwiki-auth
+              key: google-api-key
+        - name: SERVER_BASE_URL
+          value: "https://deepwiki.yourdomain.com"
+        - name: NODE_ENV
+          value: "production"
+```
+</CodeGroup>
+
+### Monitoring and Alerting
+
+<AccordionGroup>
+<Accordion title="Authentication Metrics">
+```python
+# Example monitoring setup
+import logging
+from collections import defaultdict
+from time import time
+
+# Metrics collection
+auth_metrics = {
+    'successful_auths': 0,
+    'failed_auths': 0,
+    'unique_ips': set(),
+    'requests_per_hour': defaultdict(int)
+}
+
+def track_auth_attempt(ip_address, success):
+    current_hour = int(time()) // 3600
+    
+    if success:
+        auth_metrics['successful_auths'] += 1
+    else:
+        auth_metrics['failed_auths'] += 1
+        
+    auth_metrics['unique_ips'].add(ip_address)
+    auth_metrics['requests_per_hour'][current_hour] += 1
+    
+    # Alert on suspicious activity
+    if auth_metrics['failed_auths'] > 50:
+        send_security_alert("High number of failed authentications")
+```
+</Accordion>
+
+<Accordion title="Grafana Dashboard">
+```json
+{
+  "dashboard": {
+    "title": "DeepWiki Authorization",
+    "panels": [
+      {
+        "title": "Authentication Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(deepwiki_auth_success_total[5m]) / rate(deepwiki_auth_attempts_total[5m]) * 100"
+          }
+        ]
+      },
+      {
+        "title": "Failed Authentication Attempts",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(deepwiki_auth_failures_total[1m])"
+          }
+        ]
+      },
+      {
+        "title": "Unique IPs per Hour",
+        "type": "bargraph",
+        "targets": [
+          {
+            "expr": "increase(deepwiki_unique_ips_total[1h])"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Log Analysis">
+```bash
+# Analyze authentication logs
+grep "Authorization" api/logs/application.log | tail -100
+
+# Failed authentication attempts
+grep "Authorization.*invalid" api/logs/application.log | wc -l
+
+# Unique IP addresses attempting authentication
+grep "Authorization" api/logs/application.log | \
+  grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | \
+  sort | uniq -c | sort -nr
+
+# Successful authentications per hour
+grep "Authorization.*success" api/logs/application.log | \
+  awk '{print $1" "$2}' | cut -c1-13 | uniq -c
+```
+</Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+### Development Workflow
+
+<Steps>
+<Step title="Local Development">
+```bash
+# Use simple auth codes for development
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=dev-123
+
+# Enable detailed logging
+LOG_LEVEL=DEBUG
+```
+</Step>
+
+<Step title="Staging Environment">
+```bash
+# Use production-like codes
+DEEPWIKI_AUTH_MODE=true  
+DEEPWIKI_AUTH_CODE=staging-secure-2024
+
+# Test authorization workflows thoroughly
+```
+</Step>
+
+<Step title="Production Deployment">
+```bash
+# Strong authorization codes
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=complex-random-production-code
+
+# Minimal logging
+LOG_LEVEL=WARNING
+LOG_SENSITIVE_DATA=false
+```
+</Step>
+</Steps>
+
+### Team Management
+
+<AccordionGroup>
+<Accordion title="Code Distribution">
+**Secure methods for sharing authorization codes:**
+
+1. **Encrypted communication:**
+   - Use encrypted messaging (Signal, encrypted email)
+   - Password managers with secure sharing
+   - Company secrets management systems
+
+2. **Documentation:**
+   ```markdown
+   # Team Wiki Access
+   
+   Authorization code: [Available in team password manager]
+   Location: Team Vault > DeepWiki > Production Access
+   Updated: 2024-01-15
+   Next rotation: 2024-02-15
+   ```
+
+3. **Onboarding process:**
+   - Include authorization code in new team member setup
+   - Document where to find current codes
+   - Explain rotation schedule and notifications
+</Accordion>
+
+<Accordion title="Access Levels">
+**Multiple authorization codes for different access levels:**
+
+```env
+# Different codes for different environments
+DEEPWIKI_AUTH_CODE_READONLY=readonly-access-2024
+DEEPWIKI_AUTH_CODE_FULL=full-access-2024-secure
+DEEPWIKI_AUTH_CODE_ADMIN=admin-access-ultra-secure-2024
+```
+
+**Implementation:**
+```python
+# Multiple authorization codes
+VALID_AUTH_CODES = {
+    'readonly': os.getenv('DEEPWIKI_AUTH_CODE_READONLY'),
+    'full': os.getenv('DEEPWIKI_AUTH_CODE_FULL'),
+    'admin': os.getenv('DEEPWIKI_AUTH_CODE_ADMIN')
+}
+
+def validate_auth_code(code, required_level='readonly'):
+    allowed_levels = {
+        'readonly': ['readonly', 'full', 'admin'],
+        'full': ['full', 'admin'],
+        'admin': ['admin']
+    }
+    
+    for level in allowed_levels[required_level]:
+        if VALID_AUTH_CODES[level] == code:
+            return True, level
+    
+    return False, None
+```
+</Accordion>
+</AccordionGroup>
+
+### Security Maintenance
+
+<Steps>
+<Step title="Regular Code Rotation">
+```bash
+#!/bin/bash
+# auth-rotation.sh - Automated code rotation
+
+# Generate new auth code
+NEW_CODE="wiki-$(date +%Y%m%d)-$(openssl rand -hex 6)"
+
+# Update environment
+echo "New authorization code: $NEW_CODE"
+echo "Update DEEPWIKI_AUTH_CODE in production environment"
+
+# Log rotation
+echo "$(date): Code rotated to $NEW_CODE" >> auth-rotation.log
+```
+</Step>
+
+<Step title="Access Auditing">
+```python
+# Audit script
+def audit_auth_access():
+    with open('api/logs/application.log', 'r') as f:
+        auth_events = [
+            line for line in f 
+            if 'Authorization' in line
+        ]
+    
+    print(f"Total auth events: {len(auth_events)}")
+    print(f"Successful: {len([e for e in auth_events if 'success' in e])}")
+    print(f"Failed: {len([e for e in auth_events if 'invalid' in e])}")
+```
+</Step>
+
+<Step title="Security Monitoring">
+```bash
+# Monitor for security issues
+tail -f api/logs/application.log | grep -i "auth\|security\|unauthorized"
+
+# Set up alerts for suspicious activity
+grep -c "Authorization.*invalid" api/logs/application.log | \
+  awk '{if ($1 > 10) print "ALERT: High auth failure rate"}'
+```
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Production Setup" icon="cloud-arrow-up" href="/guides/production-setup">
+  Complete production deployment with authorization mode
+</Card>
+
+<Card title="API Authentication" icon="key" href="/api/authentication">
+  Learn about complete API authentication and security
+</Card>
+
+<Card title="Private Repositories" icon="lock" href="/guides/private-repositories">
+  Configure access to private repositories with tokens
+</Card>
+
+<Card title="Security Best Practices" icon="shield-check" href="/reference/security">
+  Implement comprehensive security measures
+</Card>
+</CardGroup>

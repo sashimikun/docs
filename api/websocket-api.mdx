@@ -1,0 +1,503 @@
+---
+title: WebSocket API
+description: Real-time streaming API for chat completions and wiki generation
+---
+
+# WebSocket API
+
+DeepWiki uses WebSocket connections to provide real-time streaming responses for chat completions and wiki generation. This enables a more responsive user experience with lower latency compared to traditional HTTP streaming.
+
+## Overview
+
+The WebSocket API replaces HTTP streaming endpoints with persistent WebSocket connections that:
+- Stream AI responses in real-time as they're generated
+- Provide immediate feedback for long-running operations
+- Support bidirectional communication for future enhancements
+- Automatically fall back to HTTP if WebSocket connection fails
+
+## Connection Establishment
+
+### Endpoint
+
+```
+ws://localhost:8001/ws/chat
+```
+
+For production deployments with SSL:
+```
+wss://your-domain.com/ws/chat
+```
+
+### Client Connection Example
+
+```typescript
+// Convert HTTP URL to WebSocket URL
+const getWebSocketUrl = () => {
+  const baseUrl = process.env.SERVER_BASE_URL || 'http://localhost:8001';
+  // Replace http:// with ws:// or https:// with wss://
+  const wsBaseUrl = baseUrl.replace(/^http/, 'ws');
+  return `${wsBaseUrl}/ws/chat`;
+};
+
+// Create WebSocket connection
+const ws = new WebSocket(getWebSocketUrl());
+
+ws.onopen = () => {
+  console.log('WebSocket connection established');
+  // Send the request after connection is open
+  ws.send(JSON.stringify(requestData));
+};
+```
+
+## Message Formats
+
+### Request Format
+
+After establishing the connection, send a JSON message with the following structure:
+
+```typescript
+interface ChatCompletionRequest {
+  repo_url: string;              // Repository URL (GitHub, GitLab, BitBucket)
+  messages: ChatMessage[];       // Conversation history
+  filePath?: string;            // Optional: Focus on specific file
+  token?: string;               // Optional: Access token for private repos
+  type?: string;                // Repository type: 'github' | 'gitlab' | 'bitbucket'
+  provider?: string;            // AI provider: 'google' | 'openai' | 'openrouter' | 'ollama' | 'azure'
+  model?: string;               // Model name for the provider
+  language?: string;            // Response language: 'en' | 'ja' | 'zh' | 'es' | 'kr' | 'vi'
+  excluded_dirs?: string;       // Newline-separated list of directories to exclude
+  excluded_files?: string;      // Newline-separated list of file patterns to exclude
+  included_dirs?: string;       // Newline-separated list of directories to include
+  included_files?: string;      // Newline-separated list of file patterns to include
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+```
+
+### Response Format
+
+The server streams text responses as they're generated:
+
+```typescript
+// Each WebSocket message contains a text chunk
+ws.onmessage = (event) => {
+  const textChunk = event.data; // Plain text chunk
+  console.log('Received:', textChunk);
+  // Append to the full response
+  fullResponse += textChunk;
+};
+```
+
+## Event Types
+
+### Connection Events
+
+```typescript
+// Connection established
+ws.onopen = (event) => {
+  console.log('Connected to DeepWiki WebSocket');
+  // Send your request here
+};
+
+// Connection closed
+ws.onclose = (event) => {
+  console.log('WebSocket connection closed');
+  // Handle completion or reconnection logic
+};
+
+// Connection error
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+  // Fall back to HTTP streaming
+};
+```
+
+### Message Flow
+
+1. **Client connects** to WebSocket endpoint
+2. **Client sends** JSON request after connection opens
+3. **Server streams** text responses
+4. **Server closes** connection when complete
+5. **Client handles** close event
+
+## Streaming Features
+
+### Wiki Generation
+
+For wiki page generation, the WebSocket streams Markdown content in real-time:
+
+```typescript
+const generateWikiPage = async (page: WikiPage) => {
+  const ws = new WebSocket(wsUrl);
+  
+  await new Promise((resolve, reject) => {
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        repo_url: repoUrl,
+        messages: [{
+          role: 'user',
+          content: generatePagePrompt(page)
+        }],
+        provider: selectedProvider,
+        model: selectedModel,
+        language: language
+      }));
+    };
+    
+    let content = '';
+    ws.onmessage = (event) => {
+      content += event.data;
+      // Update UI with streaming content
+      updatePageContent(content);
+    };
+    
+    ws.onclose = () => resolve(content);
+    ws.onerror = (error) => reject(error);
+  });
+};
+```
+
+### Chat/Ask Feature
+
+The Ask feature uses WebSocket for real-time streaming with support for:
+
+- **Conversation History**: Maintains context across multiple questions
+- **Deep Research Mode**: Multi-turn research with automatic continuation
+- **File Context**: Include specific file content in queries
+
+```typescript
+// Example: Deep Research request
+const deepResearchRequest = {
+  repo_url: 'https://github.com/user/repo',
+  messages: [
+    {
+      role: 'user',
+      content: '[DEEP RESEARCH] How does the authentication system work?'
+    }
+  ],
+  provider: 'google',
+  model: 'gemini-2.0-flash',
+  language: 'en'
+};
+
+ws.send(JSON.stringify(deepResearchRequest));
+```
+
+## Connection Lifecycle
+
+### Automatic Closure
+
+The server automatically closes the WebSocket connection after:
+- Completing the response stream
+- Encountering an error
+- Detecting client disconnect
+
+### Reconnection Strategy
+
+```typescript
+const createResilientWebSocket = (
+  request: ChatCompletionRequest,
+  maxRetries: number = 3
+) => {
+  let retryCount = 0;
+  
+  const connect = () => {
+    const ws = new WebSocket(getWebSocketUrl());
+    
+    ws.onerror = (error) => {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        console.log(`Retrying connection (${retryCount}/${maxRetries})...`);
+        setTimeout(connect, 1000 * retryCount); // Exponential backoff
+      } else {
+        console.error('Max retries reached, falling back to HTTP');
+        fallbackToHttp(request);
+      }
+    };
+    
+    ws.onopen = () => {
+      retryCount = 0; // Reset on successful connection
+      ws.send(JSON.stringify(request));
+    };
+    
+    return ws;
+  };
+  
+  return connect();
+};
+```
+
+## Error Handling
+
+### Server-Side Errors
+
+The server sends error messages as text before closing the connection:
+
+```typescript
+ws.onmessage = (event) => {
+  const message = event.data;
+  
+  if (message.startsWith('Error:')) {
+    // Handle error message
+    console.error('Server error:', message);
+    // Error types:
+    // - "Error: No valid document embeddings found..."
+    // - "Error: No messages provided"
+    // - "Error: Last message must be from the user"
+    // - "Error preparing retriever: ..."
+  } else {
+    // Handle normal response
+    processResponse(message);
+  }
+};
+```
+
+### Client-Side Error Handling
+
+```typescript
+const handleWebSocketError = (error: Event) => {
+  console.error('WebSocket error:', error);
+  
+  // Fallback to HTTP streaming
+  return fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request)
+  });
+};
+```
+
+## Status Codes
+
+WebSocket connections use standard close codes:
+
+| Code | Status | Description |
+|------|--------|-------------|
+| 1000 | Normal Closure | Request completed successfully |
+| 1001 | Going Away | Server is shutting down |
+| 1002 | Protocol Error | Invalid message format |
+| 1003 | Unsupported Data | Invalid request data |
+| 1006 | Abnormal Closure | Connection lost unexpectedly |
+| 1011 | Internal Error | Server encountered an error |
+
+## Security Considerations
+
+### Authentication
+
+For private repositories, include the access token in the request:
+
+```typescript
+const secureRequest = {
+  repo_url: 'https://github.com/org/private-repo',
+  token: 'ghp_xxxxxxxxxxxx', // GitHub personal access token
+  type: 'github',
+  messages: [...]
+};
+```
+
+### Connection Security
+
+1. **Use WSS in Production**: Always use `wss://` (WebSocket Secure) in production
+2. **Token Validation**: Tokens are validated server-side before accessing repositories
+3. **Origin Validation**: Consider implementing origin checks for CORS security
+4. **Rate Limiting**: Implement connection rate limiting to prevent abuse
+
+### Example Security Headers
+
+```typescript
+// Server-side WebSocket upgrade with security headers
+app.add_websocket_route("/ws/chat", handle_websocket_chat, {
+  headers: {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block'
+  }
+});
+```
+
+## Complete Client Implementation Example
+
+```typescript
+import { ChatCompletionRequest } from '@/types/chat';
+
+class DeepWikiWebSocketClient {
+  private ws: WebSocket | null = null;
+  private messageBuffer: string = '';
+  
+  async streamCompletion(
+    request: ChatCompletionRequest,
+    onChunk: (chunk: string) => void,
+    onError: (error: Error) => void,
+    onComplete: () => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        // Close existing connection if any
+        this.close();
+        
+        // Create new WebSocket connection
+        this.ws = new WebSocket(this.getWebSocketUrl());
+        
+        // Set binary type for potential future binary support
+        this.ws.binaryType = 'arraybuffer';
+        
+        // Connection opened
+        this.ws.onopen = () => {
+          console.log('WebSocket connection established');
+          this.ws!.send(JSON.stringify(request));
+        };
+        
+        // Message received
+        this.ws.onmessage = (event) => {
+          try {
+            const chunk = event.data;
+            this.messageBuffer += chunk;
+            onChunk(chunk);
+          } catch (error) {
+            console.error('Error processing message:', error);
+            onError(error as Error);
+          }
+        };
+        
+        // Connection closed
+        this.ws.onclose = (event) => {
+          console.log('WebSocket closed:', event.code, event.reason);
+          onComplete();
+          resolve();
+        };
+        
+        // Connection error
+        this.ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          onError(new Error('WebSocket connection failed'));
+          reject(error);
+        };
+        
+        // Set timeout for connection
+        setTimeout(() => {
+          if (this.ws?.readyState === WebSocket.CONNECTING) {
+            this.close();
+            reject(new Error('WebSocket connection timeout'));
+          }
+        }, 5000);
+        
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+  
+  private getWebSocketUrl(): string {
+    const baseUrl = process.env.NEXT_PUBLIC_SERVER_BASE_URL || 'http://localhost:8001';
+    return baseUrl.replace(/^http/, 'ws') + '/ws/chat';
+  }
+  
+  close(): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close(1000, 'Client closing connection');
+    }
+    this.ws = null;
+    this.messageBuffer = '';
+  }
+  
+  getFullResponse(): string {
+    return this.messageBuffer;
+  }
+}
+
+// Usage example
+const client = new DeepWikiWebSocketClient();
+
+await client.streamCompletion(
+  {
+    repo_url: 'https://github.com/user/repo',
+    messages: [{ role: 'user', content: 'Explain the main functionality' }],
+    provider: 'google',
+    model: 'gemini-2.0-flash',
+    language: 'en'
+  },
+  (chunk) => {
+    // Update UI with streaming chunk
+    setResponse(prev => prev + chunk);
+  },
+  (error) => {
+    console.error('Streaming error:', error);
+    // Fall back to HTTP
+  },
+  () => {
+    console.log('Streaming complete');
+    // Enable UI for next question
+  }
+);
+```
+
+## Performance Considerations
+
+### Advantages over HTTP Streaming
+
+1. **Lower Latency**: No HTTP overhead for each chunk
+2. **Bidirectional**: Enables future features like progress updates
+3. **Connection Reuse**: Single connection for entire session
+4. **Binary Support**: Can handle binary data if needed
+
+### Best Practices
+
+1. **Implement Fallback**: Always have HTTP streaming as fallback
+2. **Handle Disconnects**: Gracefully handle unexpected disconnections
+3. **Buffer Management**: Clear buffers after each completion
+4. **Resource Cleanup**: Close connections when component unmounts
+
+```typescript
+// React cleanup example
+useEffect(() => {
+  return () => {
+    client.close(); // Clean up WebSocket on unmount
+  };
+}, []);
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Refused**
+   - Check if the API server is running on port 8001
+   - Verify WebSocket endpoint URL is correct
+   - Check for proxy/firewall blocking WebSocket connections
+
+2. **Immediate Disconnect**
+   - Verify request JSON format is valid
+   - Check for missing required fields
+   - Ensure messages array is not empty
+
+3. **No Response**
+   - Check server logs for errors
+   - Verify model provider credentials are set
+   - Ensure repository URL is accessible
+
+### Debug Logging
+
+Enable detailed logging for troubleshooting:
+
+```typescript
+const debugWebSocket = (ws: WebSocket) => {
+  ws.addEventListener('open', (e) => console.log('WS Open:', e));
+  ws.addEventListener('message', (e) => console.log('WS Message:', e.data));
+  ws.addEventListener('error', (e) => console.log('WS Error:', e));
+  ws.addEventListener('close', (e) => console.log('WS Close:', e.code, e.reason));
+};
+```
+
+## Future Enhancements
+
+The WebSocket infrastructure enables future real-time features:
+
+- Progress indicators for long operations
+- Cancel/interrupt ongoing generation
+- Real-time collaboration features
+- Live repository updates
+- Streaming file analysis
+- Interactive debugging sessions

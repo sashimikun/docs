@@ -1,0 +1,800 @@
+---
+title: "Wiki Generation API"
+description: "Complete API reference for DeepWikiOpen wiki generation and management endpoints"
+---
+
+## Overview
+
+The DeepWikiOpen API provides endpoints for generating comprehensive documentation from repositories using AI-powered analysis. All endpoints require authentication and support JSON request/response formats.
+
+**Base URL**: `https://api.deepwikiopen.com/v1`
+
+**Authentication**: All endpoints require an API key in the Authorization header.
+
+---
+
+## POST /wiki/generate
+
+Generate comprehensive wiki documentation from a repository URL or uploaded codebase.
+
+<ParamField path="repository_url" type="string" required>
+  The GitHub repository URL to analyze and generate documentation for
+</ParamField>
+
+<ParamField path="project_name" type="string">
+  Custom name for the project (defaults to repository name)
+</ParamField>
+
+<ParamField path="config" type="object">
+  Generation configuration options
+  <Expandable title="config properties">
+    <ParamField path="include_code_examples" type="boolean" default="true">
+      Include code examples in generated documentation
+    </ParamField>
+    <ParamField path="max_depth" type="integer" default="5">
+      Maximum directory depth to analyze (1-10)
+    </ParamField>
+    <ParamField path="exclude_patterns" type="array">
+      File patterns to exclude from analysis (e.g., ["*.test.js", "node_modules/*"])
+    </ParamField>
+    <ParamField path="include_private" type="boolean" default="false">
+      Include private/internal functions in documentation
+    </ParamField>
+    <ParamField path="output_format" type="string" default="markdown">
+      Output format: "markdown", "html", or "json"
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="webhook_url" type="string">
+  Optional webhook URL for completion notifications
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X POST "https://api.deepwikiopen.com/v1/wiki/generate" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repository_url": "https://github.com/username/awesome-project",
+    "project_name": "Awesome Project",
+    "config": {
+      "include_code_examples": true,
+      "max_depth": 3,
+      "exclude_patterns": ["*.test.js", "dist/*"],
+      "output_format": "markdown"
+    },
+    "webhook_url": "https://your-domain.com/webhooks/wiki-complete"
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.deepwikiopen.com/v1/wiki/generate"
+headers = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+data = {
+    "repository_url": "https://github.com/username/awesome-project",
+    "project_name": "Awesome Project",
+    "config": {
+        "include_code_examples": True,
+        "max_depth": 3,
+        "exclude_patterns": ["*.test.js", "dist/*"],
+        "output_format": "markdown"
+    }
+}
+
+response = requests.post(url, headers=headers, json=data)
+result = response.json()
+print(f"Task ID: {result['task_id']}")
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.deepwikiopen.com/v1/wiki/generate', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    repository_url: 'https://github.com/username/awesome-project',
+    project_name: 'Awesome Project',
+    config: {
+      include_code_examples: true,
+      max_depth: 3,
+      exclude_patterns: ['*.test.js', 'dist/*'],
+      output_format: 'markdown'
+    }
+  })
+});
+
+const result = await response.json();
+console.log('Task ID:', result.task_id);
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="task_id" type="string" required>
+  Unique identifier for tracking the generation task
+</ResponseField>
+
+<ResponseField name="project_id" type="string" required>
+  Unique project identifier for accessing results
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current task status: "queued", "processing", "completed", or "failed"
+</ResponseField>
+
+<ResponseField name="estimated_duration" type="integer">
+  Estimated completion time in seconds
+</ResponseField>
+
+<ResponseField name="webhook_registered" type="boolean">
+  Whether webhook notification was successfully registered
+</ResponseField>
+
+```json Response Example
+{
+  "task_id": "task_12345abcde",
+  "project_id": "proj_awesome_project_67890",
+  "status": "queued",
+  "estimated_duration": 180,
+  "webhook_registered": true,
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+---
+
+## GET /wiki/projects
+
+Retrieve a list of all processed repositories and their current status.
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination
+</ParamField>
+
+<ParamField query="limit" type="integer" default="20">
+  Number of projects per page (max: 100)
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by status: "completed", "processing", "failed"
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search projects by name or repository URL
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X GET "https://api.deepwikiopen.com/v1/wiki/projects?page=1&limit=10&status=completed" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+url = "https://api.deepwikiopen.com/v1/wiki/projects"
+headers = {"Authorization": "Bearer YOUR_API_KEY"}
+params = {
+    "page": 1,
+    "limit": 10,
+    "status": "completed"
+}
+
+response = requests.get(url, headers=headers, params=params)
+projects = response.json()
+```
+
+```javascript JavaScript
+const params = new URLSearchParams({
+  page: '1',
+  limit: '10',
+  status: 'completed'
+});
+
+const response = await fetch(`https://api.deepwikiopen.com/v1/wiki/projects?${params}`, {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+
+const projects = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="projects" type="array" required>
+  Array of project objects
+  <Expandable title="Project object properties">
+    <ResponseField name="project_id" type="string">
+      Unique project identifier
+    </ResponseField>
+    <ResponseField name="project_name" type="string">
+      Display name of the project
+    </ResponseField>
+    <ResponseField name="repository_url" type="string">
+      Original repository URL
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current project status
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO timestamp of creation
+    </ResponseField>
+    <ResponseField name="completed_at" type="string">
+      ISO timestamp of completion (if applicable)
+    </ResponseField>
+    <ResponseField name="file_count" type="integer">
+      Number of files processed
+    </ResponseField>
+    <ResponseField name="page_count" type="integer">
+      Number of documentation pages generated
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pagination" type="object" required>
+  Pagination information
+  <Expandable title="Pagination properties">
+    <ResponseField name="current_page" type="integer">Current page number</ResponseField>
+    <ResponseField name="total_pages" type="integer">Total number of pages</ResponseField>
+    <ResponseField name="total_items" type="integer">Total number of projects</ResponseField>
+    <ResponseField name="has_next" type="boolean">Whether there are more pages</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /wiki/{project_id}
+
+Retrieve the complete wiki documentation for a specific project.
+
+<ParamField path="project_id" type="string" required>
+  The unique project identifier
+</ParamField>
+
+<ParamField query="format" type="string" default="json">
+  Response format: "json", "markdown", or "html"
+</ParamField>
+
+<ParamField query="include_metadata" type="boolean" default="true">
+  Include project metadata in response
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X GET "https://api.deepwikiopen.com/v1/wiki/proj_awesome_project_67890?format=json" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+project_id = "proj_awesome_project_67890"
+url = f"https://api.deepwikiopen.com/v1/wiki/{project_id}"
+headers = {"Authorization": "Bearer YOUR_API_KEY"}
+params = {"format": "json", "include_metadata": True}
+
+response = requests.get(url, headers=headers, params=params)
+wiki_data = response.json()
+```
+
+```javascript JavaScript
+const projectId = 'proj_awesome_project_67890';
+const params = new URLSearchParams({
+  format: 'json',
+  include_metadata: 'true'
+});
+
+const response = await fetch(`https://api.deepwikiopen.com/v1/wiki/${projectId}?${params}`, {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+
+const wikiData = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="project_id" type="string" required>
+  Project identifier
+</ResponseField>
+
+<ResponseField name="project_name" type="string" required>
+  Project display name
+</ResponseField>
+
+<ResponseField name="repository_url" type="string" required>
+  Original repository URL
+</ResponseField>
+
+<ResponseField name="generated_at" type="string" required>
+  ISO timestamp of wiki generation
+</ResponseField>
+
+<ResponseField name="pages" type="array" required>
+  Array of documentation pages
+  <Expandable title="Page object properties">
+    <ResponseField name="id" type="string">Unique page identifier</ResponseField>
+    <ResponseField name="title" type="string">Page title</ResponseField>
+    <ResponseField name="content" type="string">Page content (format depends on query parameter)</ResponseField>
+    <ResponseField name="path" type="string">File path in repository</ResponseField>
+    <ResponseField name="type" type="string">Page type: "overview", "api", "guide", "reference"</ResponseField>
+    <ResponseField name="order" type="integer">Display order</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Project metadata (if include_metadata=true)
+  <Expandable title="Metadata properties">
+    <ResponseField name="language_stats" type="object">Programming language distribution</ResponseField>
+    <ResponseField name="file_count" type="integer">Total files processed</ResponseField>
+    <ResponseField name="complexity_score" type="number">Project complexity rating (0-10)</ResponseField>
+    <ResponseField name="last_commit" type="string">Last commit hash from repository</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## DELETE /wiki/{project_id}
+
+Delete a project's cached wiki data and generated documentation.
+
+<ParamField path="project_id" type="string" required>
+  The unique project identifier to delete
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X DELETE "https://api.deepwikiopen.com/v1/wiki/proj_awesome_project_67890" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+project_id = "proj_awesome_project_67890"
+url = f"https://api.deepwikiopen.com/v1/wiki/{project_id}"
+headers = {"Authorization": "Bearer YOUR_API_KEY"}
+
+response = requests.delete(url, headers=headers)
+result = response.json()
+```
+
+```javascript JavaScript
+const projectId = 'proj_awesome_project_67890';
+
+const response = await fetch(`https://api.deepwikiopen.com/v1/wiki/${projectId}`, {
+  method: 'DELETE',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+
+const result = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="success" type="boolean" required>
+  Whether the deletion was successful
+</ResponseField>
+
+<ResponseField name="project_id" type="string" required>
+  The deleted project identifier
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Confirmation message
+</ResponseField>
+
+<ResponseField name="deleted_at" type="string" required>
+  ISO timestamp of deletion
+</ResponseField>
+
+```json Response Example
+{
+  "success": true,
+  "project_id": "proj_awesome_project_67890",
+  "message": "Project wiki data successfully deleted",
+  "deleted_at": "2024-01-15T14:30:00Z"
+}
+```
+
+---
+
+## POST /wiki/regenerate
+
+Force regenerate wiki documentation for an existing project with updated configuration.
+
+<ParamField path="project_id" type="string" required>
+  The project identifier to regenerate
+</ParamField>
+
+<ParamField path="config" type="object">
+  Updated generation configuration (same structure as /wiki/generate)
+</ParamField>
+
+<ParamField path="force_refresh" type="boolean" default="false">
+  Force refresh from repository (ignore cache)
+</ParamField>
+
+<ParamField path="webhook_url" type="string">
+  Optional webhook URL for completion notifications
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X POST "https://api.deepwikiopen.com/v1/wiki/regenerate" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "proj_awesome_project_67890",
+    "config": {
+      "include_code_examples": true,
+      "max_depth": 5,
+      "output_format": "html"
+    },
+    "force_refresh": true
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.deepwikiopen.com/v1/wiki/regenerate"
+headers = {
+    "Authorization": "Bearer YOUR_API_KEY",
+    "Content-Type": "application/json"
+}
+data = {
+    "project_id": "proj_awesome_project_67890",
+    "config": {
+        "include_code_examples": True,
+        "max_depth": 5,
+        "output_format": "html"
+    },
+    "force_refresh": True
+}
+
+response = requests.post(url, headers=headers, json=data)
+result = response.json()
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.deepwikiopen.com/v1/wiki/regenerate', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    project_id: 'proj_awesome_project_67890',
+    config: {
+      include_code_examples: true,
+      max_depth: 5,
+      output_format: 'html'
+    },
+    force_refresh: true
+  })
+});
+
+const result = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+Same response structure as POST /wiki/generate.
+
+---
+
+## GET /wiki/status/{task_id}
+
+Check the status of a wiki generation task and get progress updates.
+
+<ParamField path="task_id" type="string" required>
+  The task identifier returned from generation request
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+```bash curl
+curl -X GET "https://api.deepwikiopen.com/v1/wiki/status/task_12345abcde" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```python Python
+import requests
+
+task_id = "task_12345abcde"
+url = f"https://api.deepwikiopen.com/v1/wiki/status/{task_id}"
+headers = {"Authorization": "Bearer YOUR_API_KEY"}
+
+response = requests.get(url, headers=headers)
+status = response.json()
+```
+
+```javascript JavaScript
+const taskId = 'task_12345abcde';
+
+const response = await fetch(`https://api.deepwikiopen.com/v1/wiki/status/${taskId}`, {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+
+const status = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="task_id" type="string" required>
+  The task identifier
+</ResponseField>
+
+<ResponseField name="project_id" type="string" required>
+  Associated project identifier
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current status: "queued", "processing", "completed", "failed"
+</ResponseField>
+
+<ResponseField name="progress" type="object">
+  Progress information (when status is "processing")
+  <Expandable title="Progress properties">
+    <ResponseField name="percentage" type="integer">Completion percentage (0-100)</ResponseField>
+    <ResponseField name="current_step" type="string">Current processing step</ResponseField>
+    <ResponseField name="files_processed" type="integer">Number of files processed so far</ResponseField>
+    <ResponseField name="total_files" type="integer">Total files to process</ResponseField>
+    <ResponseField name="estimated_remaining" type="integer">Estimated seconds remaining</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Results (when status is "completed")
+  <Expandable title="Result properties">
+    <ResponseField name="wiki_url" type="string">URL to access generated wiki</ResponseField>
+    <ResponseField name="pages_generated" type="integer">Number of pages created</ResponseField>
+    <ResponseField name="processing_time" type="integer">Total processing time in seconds</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Error information (when status is "failed")
+  <Expandable title="Error properties">
+    <ResponseField name="code" type="string">Error code</ResponseField>
+    <ResponseField name="message" type="string">Error description</ResponseField>
+    <ResponseField name="details" type="string">Additional error details</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO timestamp when task was created
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO timestamp of last status update
+</ResponseField>
+
+```json Response Example (Processing)
+{
+  "task_id": "task_12345abcde",
+  "project_id": "proj_awesome_project_67890",
+  "status": "processing",
+  "progress": {
+    "percentage": 65,
+    "current_step": "Generating API documentation",
+    "files_processed": 42,
+    "total_files": 65,
+    "estimated_remaining": 45
+  },
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:32:15Z"
+}
+```
+
+---
+
+## Authentication
+
+All API endpoints require authentication using an API key passed in the Authorization header:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Getting an API Key
+
+1. Sign up for a DeepWikiOpen account at [console.deepwikiopen.com](https://console.deepwikiopen.com)
+2. Navigate to the API Keys section
+3. Generate a new API key
+4. Store it securely (it won't be shown again)
+
+---
+
+## Rate Limiting
+
+API requests are rate limited to prevent abuse:
+
+- **Standard Plan**: 100 requests per hour
+- **Pro Plan**: 1,000 requests per hour  
+- **Enterprise Plan**: 10,000 requests per hour
+
+Rate limit headers are included in all responses:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1642248000
+```
+
+When rate limited, you'll receive a 429 status code:
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests. Limit resets at 2024-01-15T11:00:00Z"
+  }
+}
+```
+
+---
+
+## Error Responses
+
+All endpoints follow consistent error response format:
+
+### HTTP Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 201 | Created |
+| 400 | Bad Request |
+| 401 | Unauthorized |
+| 403 | Forbidden |
+| 404 | Not Found |
+| 429 | Rate Limited |
+| 500 | Internal Server Error |
+| 503 | Service Unavailable |
+
+### Error Response Format
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": "Additional error context",
+    "request_id": "req_12345abcde"
+  }
+}
+```
+
+### Common Error Codes
+
+| Code | Description |
+|------|-------------|
+| `INVALID_API_KEY` | API key is missing or invalid |
+| `PROJECT_NOT_FOUND` | Specified project doesn't exist |
+| `TASK_NOT_FOUND` | Specified task doesn't exist |
+| `INVALID_REPOSITORY_URL` | Repository URL is malformed or inaccessible |
+| `GENERATION_FAILED` | Wiki generation failed due to processing error |
+| `RATE_LIMIT_EXCEEDED` | Too many requests within time window |
+| `INSUFFICIENT_CREDITS` | Not enough API credits remaining |
+
+---
+
+## Webhooks
+
+When providing a `webhook_url` in generation requests, DeepWikiOpen will send HTTP POST notifications when tasks complete:
+
+### Webhook Payload
+
+```json
+{
+  "event": "wiki.generation.completed",
+  "task_id": "task_12345abcde",
+  "project_id": "proj_awesome_project_67890",
+  "status": "completed",
+  "result": {
+    "wiki_url": "https://api.deepwikiopen.com/v1/wiki/proj_awesome_project_67890",
+    "pages_generated": 15,
+    "processing_time": 142
+  },
+  "timestamp": "2024-01-15T10:35:00Z"
+}
+```
+
+### Webhook Security
+
+Webhooks include a signature header for verification:
+
+```http
+X-DeepWiki-Signature: sha256=1234567890abcdef...
+```
+
+Verify the signature using your webhook secret (available in your dashboard).
+
+---
+
+## SDK Examples
+
+### Python SDK
+
+```python
+from deepwikiopen import DeepWikiClient
+
+client = DeepWikiClient(api_key="YOUR_API_KEY")
+
+# Generate wiki
+task = client.generate_wiki(
+    repository_url="https://github.com/username/repo",
+    config={
+        "include_code_examples": True,
+        "max_depth": 3
+    }
+)
+
+# Wait for completion
+result = client.wait_for_completion(task.task_id)
+print(f"Wiki generated: {result.wiki_url}")
+```
+
+### Node.js SDK  
+
+```javascript
+const { DeepWikiClient } = require('deepwikiopen');
+
+const client = new DeepWikiClient({ apiKey: 'YOUR_API_KEY' });
+
+// Generate wiki
+const task = await client.generateWiki({
+  repositoryUrl: 'https://github.com/username/repo',
+  config: {
+    includeCodeExamples: true,
+    maxDepth: 3
+  }
+});
+
+// Poll for completion
+const result = await client.waitForCompletion(task.taskId);
+console.log(`Wiki generated: ${result.wikiUrl}`);
+```
+
+---
+
+## Support
+
+For API support and questions:
+
+- **Documentation**: [docs.deepwikiopen.com](https://docs.deepwikiopen.com)
+- **Support Email**: support@deepwikiopen.com
+- **Status Page**: [status.deepwikiopen.com](https://status.deepwikiopen.com)
+- **Community Discord**: [discord.gg/deepwikiopen](https://discord.gg/deepwikiopen)

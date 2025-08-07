@@ -1,0 +1,756 @@
+---
+title: "API Authentication"
+description: "Authentication and security configuration for the DeepWiki-Open API including authorization modes and access control"
+---
+
+The DeepWiki-Open API supports multiple authentication methods to secure your documentation generation service. This guide covers all authentication options, security configurations, and best practices.
+
+## Authentication Overview
+
+DeepWiki-Open uses a multi-layered authentication approach:
+
+<CardGroup cols={2}>
+<Card title="Environment-Based Auth" icon="key">
+  API provider keys configured via environment variables
+</Card>
+
+<Card title="Authorization Mode" icon="shield">
+  Optional secret code protection for wiki generation
+</Card>
+
+<Card title="Repository Tokens" icon="github">
+  Personal access tokens for private repository access
+</Card>
+
+<Card title="Request Validation" icon="check-circle">
+  Input validation and rate limiting protection
+</Card>
+</CardGroup>
+
+## Environment-Based Authentication
+
+### API Provider Authentication
+
+The API automatically validates configured AI provider credentials:
+
+<Tabs>
+<Tab title="Google Gemini">
+<ParamField header="Authorization" type="string">
+  Uses `GOOGLE_API_KEY` from environment automatically
+</ParamField>
+
+**Validation endpoint:**
+```bash
+curl -X GET "http://localhost:8001/auth/validate/google"
+```
+
+**Response:**
+```json
+{
+  "provider": "google",
+  "status": "valid",
+  "models_available": [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.0-pro"
+  ],
+  "quota": {
+    "requests_per_minute": 15,
+    "tokens_per_minute": 32000,
+    "usage_today": "12%"
+  }
+}
+```
+</Tab>
+
+<Tab title="OpenAI">
+<ParamField header="Authorization" type="string">
+  Uses `OPENAI_API_KEY` from environment automatically
+</ParamField>
+
+**Validation endpoint:**
+```bash
+curl -X GET "http://localhost:8001/auth/validate/openai"
+```
+
+**Response:**
+```json
+{
+  "provider": "openai",
+  "status": "valid", 
+  "models_available": [
+    "gpt-4o",
+    "gpt-4.1", 
+    "o1",
+    "o4-mini"
+  ],
+  "quota": {
+    "tier": "tier-2",
+    "requests_per_minute": 500,
+    "tokens_per_minute": 30000,
+    "current_usage": "8%"
+  }
+}
+```
+</Tab>
+
+<Tab title="Azure OpenAI">
+<ParamField header="Authorization" type="string">
+  Uses Azure credentials from environment
+</ParamField>
+
+**Required environment variables:**
+```env
+AZURE_OPENAI_API_KEY=your_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_VERSION=2024-02-15-preview
+```
+
+**Validation:**
+```bash
+curl -X GET "http://localhost:8001/auth/validate/azure"
+```
+</Tab>
+</Tabs>
+
+### Authentication Status
+
+Check overall authentication status:
+
+<RequestExample>
+```bash cURL
+curl -X GET "http://localhost:8001/auth/status"
+```
+
+```python Python
+import requests
+
+response = requests.get("http://localhost:8001/auth/status")
+auth_status = response.json()
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8001/auth/status');
+const authStatus = await response.json();
+```
+</RequestExample>
+
+<ResponseExample>
+```json Response
+{
+  "authentication": {
+    "overall_status": "healthy",
+    "providers": {
+      "google": {
+        "configured": true,
+        "valid": true,
+        "models_count": 3
+      },
+      "openai": {
+        "configured": true,
+        "valid": true,
+        "models_count": 4
+      },
+      "openrouter": {
+        "configured": false,
+        "valid": null,
+        "models_count": 0
+      },
+      "azure": {
+        "configured": true,
+        "valid": true,
+        "models_count": 2
+      },
+      "ollama": {
+        "configured": true,
+        "valid": true,
+        "models_count": 3,
+        "local": true
+      }
+    },
+    "recommended_provider": "google",
+    "fallback_providers": ["openai", "azure"]
+  },
+  "authorization": {
+    "mode": "disabled",
+    "required": false
+  }
+}
+```
+</ResponseExample>
+
+## Authorization Mode
+
+Optional access control requiring a secret code for wiki generation.
+
+### Enabling Authorization Mode
+
+<Steps>
+<Step title="Configure Environment">
+Set authorization environment variables:
+
+```env
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=your-secret-code-here
+```
+
+<Warning>
+Choose a strong, unique authorization code. This provides basic access control.
+</Warning>
+</Step>
+
+<Step title="Restart API Server">
+Authorization mode requires a server restart:
+
+```bash
+# Stop current server
+# Restart with new configuration
+python -m api.main
+```
+
+<Check>
+Server logs should show: "Authorization mode: ENABLED"
+</Check>
+</Step>
+
+<Step title="Verify Configuration">
+```bash
+curl -X GET "http://localhost:8001/auth/status"
+```
+
+Should show:
+```json
+{
+  "authorization": {
+    "mode": "enabled", 
+    "required": true
+  }
+}
+```
+</Step>
+</Steps>
+
+### Using Authorization Mode
+
+When authorization is enabled, all wiki generation requests must include the auth code:
+
+<RequestExample>
+```bash cURL with Auth
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/microsoft/vscode",
+    "model_provider": "google",
+    "auth_code": "your-secret-code-here"
+  }'
+```
+
+```python Python with Auth
+import requests
+
+response = requests.post("http://localhost:8001/wiki/generate", json={
+    "repo_url": "https://github.com/microsoft/vscode",
+    "model_provider": "google",
+    "auth_code": "your-secret-code-here"
+})
+```
+
+```javascript JavaScript with Auth
+const response = await fetch('http://localhost:8001/wiki/generate', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    repo_url: 'https://github.com/microsoft/vscode',
+    model_provider: 'google',
+    auth_code: 'your-secret-code-here'
+  })
+});
+```
+</RequestExample>
+
+### Authorization Validation
+
+Test authorization codes before use:
+
+<RequestExample>
+```bash Validate Auth Code
+curl -X POST "http://localhost:8001/auth/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "auth_code": "your-secret-code-here"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Valid Code
+{
+  "valid": true,
+  "message": "Authorization code accepted"
+}
+```
+
+```json Invalid Code
+{
+  "valid": false,
+  "message": "Invalid authorization code",
+  "error": "AUTHORIZATION_FAILED"
+}
+```
+</ResponseExample>
+
+## Repository Access Tokens
+
+For accessing private repositories, provide personal access tokens.
+
+### Supported Platforms
+
+<Tabs>
+<Tab title="GitHub">
+**Token creation:**
+1. Go to GitHub Settings → Developer settings → Personal access tokens
+2. Generate new token (classic or fine-grained)
+3. Select scopes: `repo` (full repository access)
+
+**Token format:** `ghp_xxxxxxxxxxxxxxxxxxxx` (classic) or `github_pat_xxxx` (fine-grained)
+
+**Usage in requests:**
+```json
+{
+  "repo_url": "https://github.com/company/private-repo",
+  "access_token": "ghp_xxxxxxxxxxxxxxxxxxxx",
+  "model_provider": "google"
+}
+```
+</Tab>
+
+<Tab title="GitLab">
+**Token creation:**
+1. Go to GitLab User Settings → Access Tokens
+2. Create personal access token
+3. Select scopes: `read_repository`
+
+**Token format:** `glpat-xxxxxxxxxxxxxxxxxxxx`
+
+**Usage in requests:**
+```json
+{
+  "repo_url": "https://gitlab.com/company/private-repo",
+  "access_token": "glpat-xxxxxxxxxxxxxxxxxxxx",
+  "model_provider": "google"
+}
+```
+</Tab>
+
+<Tab title="BitBucket">
+**Token creation:**
+1. Go to BitBucket Account Settings → App passwords
+2. Create app password
+3. Select permissions: `Repositories: Read`
+
+**Token format:** App-specific password
+
+**Usage in requests:**
+```json
+{
+  "repo_url": "https://bitbucket.org/company/private-repo", 
+  "access_token": "your-app-password",
+  "model_provider": "google"
+}
+```
+</Tab>
+</Tabs>
+
+### Token Validation
+
+Validate repository access tokens:
+
+<RequestExample>
+```bash Validate GitHub Token
+curl -X POST "http://localhost:8001/auth/validate-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "platform": "github",
+    "token": "ghp_xxxxxxxxxxxxxxxxxxxx"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Valid Token
+{
+  "valid": true,
+  "platform": "github",
+  "scopes": ["repo", "user"],
+  "user": "your-username",
+  "expires_at": "2024-12-31T23:59:59Z"
+}
+```
+
+```json Invalid Token
+{
+  "valid": false,
+  "platform": "github", 
+  "error": "BAD_CREDENTIALS",
+  "message": "Token is invalid or expired"
+}
+```
+</ResponseExample>
+
+## Security Best Practices
+
+### Environment Security
+
+<AccordionGroup>
+<Accordion title="API Key Management">
+**Secure storage:**
+```bash
+# Use environment files with restricted permissions
+chmod 600 .env
+
+# Never commit API keys to version control
+echo ".env" >> .gitignore
+
+# Use different keys for development and production
+# .env.development vs .env.production
+```
+
+**Key rotation:**
+```bash
+# Regular key rotation schedule
+# 1. Generate new API keys
+# 2. Test with new keys
+# 3. Update production environment
+# 4. Revoke old keys
+# 5. Monitor for any issues
+```
+
+**Monitoring:**
+```javascript
+{
+  "api_key_monitoring": {
+    "check_quota_daily": true,
+    "alert_on_high_usage": true,
+    "track_failed_requests": true,
+    "log_security_events": true
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Network Security">
+**HTTPS configuration:**
+```nginx
+# Nginx configuration for HTTPS
+server {
+    listen 443 ssl;
+    server_name deepwiki.yourdomain.com;
+    
+    ssl_certificate /path/to/certificate.crt;
+    ssl_certificate_key /path/to/private.key;
+    
+    location / {
+        proxy_pass http://localhost:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**Firewall rules:**
+```bash
+# Only allow necessary ports
+sudo ufw allow 22    # SSH
+sudo ufw allow 80    # HTTP (redirect to HTTPS)
+sudo ufw allow 443   # HTTPS
+sudo ufw deny 8001   # Block direct API access
+sudo ufw enable
+```
+</Accordion>
+
+<Accordion title="Request Validation">
+**Input sanitization:**
+```python
+# Example validation middleware
+def validate_repo_url(url: str) -> bool:
+    allowed_domains = [
+        'github.com',
+        'gitlab.com', 
+        'bitbucket.org'
+    ]
+    
+    parsed = urlparse(url)
+    return (
+        parsed.scheme in ['https'] and
+        parsed.netloc in allowed_domains and
+        len(parsed.path.split('/')) >= 3
+    )
+```
+
+**Rate limiting:**
+```javascript
+{
+  "rate_limits": {
+    "requests_per_minute": 10,
+    "requests_per_hour": 100,
+    "requests_per_day": 1000,
+    "burst_allowance": 5
+  }
+}
+```
+</Accordion>
+</AccordionGroup>
+
+### Production Security
+
+<Steps>
+<Step title="Authentication Hardening">
+```env
+# Production security settings
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=complex-random-string-here
+
+# Additional security
+NODE_ENV=production
+LOG_LEVEL=WARNING
+LOG_SENSITIVE_DATA=false
+```
+</Step>
+
+<Step title="Access Control">
+```bash
+# Restrict API access to authorized IPs
+# Using firewall or reverse proxy
+iptables -A INPUT -p tcp --dport 8001 -s 192.168.1.0/24 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8001 -j DROP
+```
+</Step>
+
+<Step title="Monitoring & Alerting">
+```javascript
+{
+  "security_monitoring": {
+    "failed_auth_attempts": {
+      "threshold": 10,
+      "window": "1h", 
+      "action": "alert"
+    },
+    "unusual_usage_patterns": {
+      "detect_anomalies": true,
+      "baseline_days": 7
+    },
+    "api_abuse_detection": {
+      "large_repository_attempts": true,
+      "rapid_fire_requests": true
+    }
+  }
+}
+```
+</Step>
+</Steps>
+
+## Error Handling
+
+### Authentication Errors
+
+<ResponseExample>
+```json Missing API Keys
+{
+  "error": {
+    "code": "MISSING_API_KEYS",
+    "message": "No valid AI provider API keys configured",
+    "details": {
+      "configured_providers": [],
+      "required_providers": ["google", "openai", "openrouter"],
+      "suggestion": "Configure at least one AI provider API key"
+    }
+  }
+}
+```
+
+```json Invalid Authorization
+{
+  "error": {
+    "code": "AUTHORIZATION_REQUIRED",
+    "message": "Authorization code required but not provided",
+    "details": {
+      "auth_mode": "enabled",
+      "provided_code": null,
+      "suggestion": "Include 'auth_code' in request body"
+    }
+  }
+}
+```
+
+```json Repository Access Denied
+{
+  "error": {
+    "code": "REPOSITORY_ACCESS_DENIED",
+    "message": "Cannot access private repository",
+    "details": {
+      "repo_url": "https://github.com/company/private-repo",
+      "platform": "github",
+      "suggestion": "Provide valid access token with repository permissions"
+    }
+  }
+}
+```
+</ResponseExample>
+
+### Token Validation Errors
+
+<AccordionGroup>
+<Accordion title="Expired Tokens">
+```json
+{
+  "error": {
+    "code": "TOKEN_EXPIRED",
+    "message": "Repository access token has expired",
+    "details": {
+      "platform": "github",
+      "expired_at": "2024-01-15T10:30:00Z",
+      "suggestion": "Generate new personal access token"
+    }
+  }
+}
+```
+
+**Resolution:**
+1. Generate new personal access token
+2. Update request with new token
+3. Consider using longer-lived tokens for automation
+</Accordion>
+
+<Accordion title="Insufficient Permissions">
+```json
+{
+  "error": {
+    "code": "INSUFFICIENT_PERMISSIONS", 
+    "message": "Token lacks required repository permissions",
+    "details": {
+      "platform": "github",
+      "required_scopes": ["repo"],
+      "current_scopes": ["user"],
+      "suggestion": "Create token with 'repo' scope for private repositories"
+    }
+  }
+}
+```
+
+**Resolution:**
+1. Create new token with correct scopes
+2. For GitHub: include `repo` scope for private repositories
+3. For GitLab: include `read_repository` scope
+</Accordion>
+</AccordionGroup>
+
+## Integration Examples
+
+### Middleware Authentication
+
+<CodeGroup>
+```python Python Middleware
+from functools import wraps
+from flask import request, jsonify
+
+def require_auth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_code = request.json.get('auth_code')
+        
+        if not validate_auth_code(auth_code):
+            return jsonify({
+                'error': 'Invalid or missing authorization code'
+            }), 401
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/wiki/generate', methods=['POST'])
+@require_auth
+def generate_wiki():
+    # Wiki generation logic
+    pass
+```
+
+```javascript Node.js Middleware
+const authenticateRequest = (req, res, next) => {
+  const { auth_code } = req.body;
+  
+  if (!validateAuthCode(auth_code)) {
+    return res.status(401).json({
+      error: 'Invalid or missing authorization code'
+    });
+  }
+  
+  next();
+};
+
+app.post('/wiki/generate', authenticateRequest, (req, res) => {
+  // Wiki generation logic
+});
+```
+</CodeGroup>
+
+### Client-Side Authentication
+
+<CodeGroup>
+```javascript React Hook
+import { useState, useEffect } from 'react';
+
+export function useDeepWikiAuth() {
+  const [authStatus, setAuthStatus] = useState(null);
+  
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+  
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch('/api/auth/status');
+      const status = await response.json();
+      setAuthStatus(status);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+    }
+  };
+  
+  const validateAuthCode = async (code) => {
+    try {
+      const response = await fetch('/api/auth/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auth_code: code })
+      });
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  };
+  
+  return { authStatus, validateAuthCode, checkAuthStatus };
+}
+```
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Wiki Endpoints" icon="book" href="/api/wiki-endpoints">
+  Learn about wiki generation and management endpoints
+</Card>
+
+<Card title="Security Guide" icon="shield" href="/reference/security">
+  Implement comprehensive security measures
+</Card>
+
+<Card title="Production Setup" icon="cloud" href="/guides/production-setup">
+  Deploy with proper authentication in production
+</Card>
+
+<Card title="Monitoring" icon="chart-line" href="/reference/monitoring">
+  Set up authentication monitoring and alerts
+</Card>
+</CardGroup>

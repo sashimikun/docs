@@ -1,0 +1,1359 @@
+# Manual Setup Guide
+
+A comprehensive guide for developers who prefer hands-on control over their DeepWiki-Open development environment.
+
+## Prerequisites
+
+Before starting, ensure you have the following installed on your system:
+
+- **Python 3.12+** (Required by pyproject.toml)
+- **Node.js 18+** (Required for Next.js)
+- **Git** (For repository cloning)
+- **Basic terminal/command line knowledge**
+
+## 1. Environment Setup
+
+### 1.1 Python Environment Setup
+
+#### Option A: Using Virtual Environment (Recommended)
+
+```bash
+# Create a virtual environment
+python -m venv deepwiki-env
+
+# Activate the virtual environment
+# On Windows:
+deepwiki-env\Scripts\activate
+# On macOS/Linux:
+source deepwiki-env/bin/activate
+
+# Verify Python version
+python --version  # Should be 3.12+
+```
+
+#### Option B: Using Conda
+
+```bash
+# Create conda environment
+conda create -n deepwiki python=3.12
+conda activate deepwiki
+
+# Verify installation
+python --version
+which python  # Should point to conda environment
+```
+
+#### Option C: Using pyenv (Advanced)
+
+```bash
+# Install Python 3.12 if not available
+pyenv install 3.12.0
+pyenv local 3.12.0
+
+# Create virtual environment
+python -m venv deepwiki-env
+source deepwiki-env/bin/activate
+```
+
+### 1.2 Node.js and Package Manager Setup
+
+#### Install Node.js
+
+**Option A: Using Node Version Manager (Recommended)**
+
+```bash
+# Install nvm (macOS/Linux)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+source ~/.bashrc
+
+# Install and use Node.js LTS
+nvm install --lts
+nvm use --lts
+nvm alias default node
+```
+
+**Option B: Direct Installation**
+
+Download from [nodejs.org](https://nodejs.org/) or use package managers:
+
+```bash
+# macOS with Homebrew
+brew install node
+
+# Ubuntu/Debian
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# CentOS/RHEL/Fedora
+curl -fsSL https://rpm.nodesource.com/setup_lts.x | sudo bash -
+sudo yum install -y nodejs
+```
+
+#### Choose Package Manager
+
+```bash
+# npm (comes with Node.js)
+npm --version
+
+# Yarn (optional, faster alternative)
+npm install -g yarn
+yarn --version
+
+# pnpm (optional, efficient alternative)
+npm install -g pnpm
+pnpm --version
+```
+
+## 2. Project Setup
+
+### 2.1 Clone and Initial Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/AsyncFuncAI/deepwiki-open.git
+cd deepwiki-open
+
+# Create necessary directories
+mkdir -p logs
+mkdir -p ~/.adalflow/{repos,databases,wikicache}
+```
+
+### 2.2 Python Dependencies Installation
+
+#### Using pip with requirements.txt
+
+```bash
+# Ensure virtual environment is activated
+# Install backend dependencies
+pip install -r api/requirements.txt
+
+# Verify installation
+pip list | grep fastapi
+pip list | grep uvicorn
+```
+
+#### Using uv (Modern Python Package Manager)
+
+```bash
+# Install uv if not available
+pip install uv
+
+# Install dependencies using uv
+uv pip install -r api/requirements.txt
+
+# Alternative: Use pyproject.toml
+uv pip install -e .
+```
+
+#### Troubleshooting Python Dependencies
+
+```bash
+# If you encounter version conflicts
+pip install --upgrade pip
+pip install --no-cache-dir -r api/requirements.txt
+
+# For Apple Silicon Macs (M1/M2)
+pip install --no-cache-dir --compile --no-use-pep517 numpy
+pip install -r api/requirements.txt
+
+# For systems with limited resources
+pip install --no-cache-dir -r api/requirements.txt
+```
+
+### 2.3 Node.js Dependencies Installation
+
+```bash
+# Using npm
+npm install
+
+# Using yarn
+yarn install
+
+# Using pnpm
+pnpm install
+
+# Verify installation
+npm list --depth=0
+# or
+ls node_modules/
+```
+
+## 3. Environment Configuration
+
+### 3.1 Environment Variables Setup
+
+Create a `.env` file in the project root:
+
+```bash
+# Create .env file
+touch .env
+```
+
+**Basic Configuration:**
+
+```env
+# Required API Keys (choose at least one)
+GOOGLE_API_KEY=your_google_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional API Keys
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_VERSION=2023-12-01-preview
+
+# Ollama Configuration (if using local models)
+OLLAMA_HOST=http://localhost:11434
+
+# Server Configuration
+PORT=8001
+SERVER_BASE_URL=http://localhost:8001
+
+# Authorization (optional)
+DEEPWIKI_AUTH_MODE=false
+DEEPWIKI_AUTH_CODE=your_secret_code_here
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE_PATH=./api/logs/application.log
+
+# Custom Configuration Directory (optional)
+DEEPWIKI_CONFIG_DIR=./api/config
+
+# OpenAI Base URL (for custom endpoints)
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+**Development Configuration:**
+
+```env
+# Development-specific settings
+LOG_LEVEL=DEBUG
+NODE_ENV=development
+NEXT_PUBLIC_API_URL=http://localhost:8001
+```
+
+**Production Configuration:**
+
+```env
+# Production-specific settings
+LOG_LEVEL=WARNING
+NODE_ENV=production
+NEXT_PUBLIC_API_URL=https://your-domain.com/api
+```
+
+### 3.2 API Key Acquisition
+
+#### Google AI Studio
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Create a new project or select existing
+3. Generate API key
+4. Copy to `GOOGLE_API_KEY` in `.env`
+
+#### OpenAI Platform
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create account and add billing information
+3. Generate new secret key
+4. Copy to `OPENAI_API_KEY` in `.env`
+
+#### OpenRouter
+1. Visit [OpenRouter](https://openrouter.ai/)
+2. Sign up and add credits
+3. Generate API key from dashboard
+4. Copy to `OPENROUTER_API_KEY` in `.env`
+
+#### Azure OpenAI
+1. Go to [Azure Portal](https://portal.azure.com/)
+2. Create Azure OpenAI resource
+3. Get keys and endpoint from resource
+4. Configure all three Azure variables in `.env`
+
+## 4. Database and Storage Setup
+
+### 4.1 Local Storage Directories
+
+DeepWiki-Open uses local file storage. Create required directories:
+
+```bash
+# Create storage directories
+mkdir -p ~/.adalflow/repos        # Cloned repositories
+mkdir -p ~/.adalflow/databases    # Vector embeddings
+mkdir -p ~/.adalflow/wikicache    # Generated wikis
+mkdir -p ./api/logs              # Application logs
+
+# Set appropriate permissions
+chmod 755 ~/.adalflow
+chmod 755 ~/.adalflow/repos
+chmod 755 ~/.adalflow/databases
+chmod 755 ~/.adalflow/wikicache
+chmod 755 ./api/logs
+```
+
+### 4.2 FAISS Vector Database
+
+DeepWiki uses FAISS for vector storage (included in requirements):
+
+```bash
+# Verify FAISS installation
+python -c "import faiss; print('FAISS version:', faiss.__version__)"
+
+# For GPU acceleration (optional)
+pip install faiss-gpu  # Only if you have CUDA
+```
+
+### 4.3 Storage Configuration
+
+Edit `api/config/embedder.json` to customize storage settings:
+
+```json
+{
+  "embedder": {
+    "model": "text-embedding-ada-002",
+    "provider": "openai"
+  },
+  "retriever": {
+    "similarity_top_k": 5,
+    "vector_store_type": "faiss"
+  },
+  "text_splitter": {
+    "type": "recursive_character",
+    "chunk_size": 1000,
+    "chunk_overlap": 200
+  }
+}
+```
+
+## 5. Service Configuration
+
+### 5.1 Backend API Configuration
+
+#### FastAPI Server Settings
+
+Create `api/config/server.json`:
+
+```json
+{
+  "host": "0.0.0.0",
+  "port": 8001,
+  "reload": true,
+  "workers": 1,
+  "log_config": {
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+      "default": {
+        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      }
+    },
+    "handlers": {
+      "default": {
+        "formatter": "default",
+        "class": "logging.StreamHandler",
+        "stream": "ext://sys.stdout"
+      }
+    },
+    "root": {
+      "level": "INFO",
+      "handlers": ["default"]
+    }
+  }
+}
+```
+
+#### CORS Configuration
+
+The API allows all origins by default. For production, modify `api/api.py`:
+
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "https://yourdomain.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+### 5.2 Frontend Configuration
+
+#### Next.js Configuration
+
+Edit `next.config.ts`:
+
+```typescript
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001',
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${process.env.NEXT_PUBLIC_API_URL}/api/:path*`,
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+#### Internationalization Setup
+
+Configure supported languages in `src/i18n.ts`:
+
+```typescript
+import {notFound} from 'next/navigation';
+import {getRequestConfig} from 'next-intl/server';
+
+export const locales = ['en', 'zh', 'ja', 'es', 'fr', 'ko', 'vi', 'pt-br', 'ru', 'zh-tw'];
+
+export default getRequestConfig(async ({locale}) => {
+  if (!locales.includes(locale as any)) notFound();
+
+  return {
+    messages: (await import(`./messages/${locale}.json`)).default
+  };
+});
+```
+
+## 6. Development vs Production Configurations
+
+### 6.1 Development Configuration
+
+**Backend Development:**
+
+```bash
+# Install development dependencies
+pip install -r api/requirements.txt
+pip install pytest black flake8 mypy  # Additional dev tools
+
+# Run in development mode
+cd api
+python -m uvicorn main:app --reload --port 8001 --log-level debug
+```
+
+**Frontend Development:**
+
+```bash
+# Enable development features
+export NODE_ENV=development
+export NEXT_PUBLIC_API_URL=http://localhost:8001
+
+# Run development server
+npm run dev
+# or
+yarn dev
+```
+
+**Development `.env`:**
+
+```env
+NODE_ENV=development
+LOG_LEVEL=DEBUG
+NEXT_PUBLIC_API_URL=http://localhost:8001
+DEEPWIKI_AUTH_MODE=false
+```
+
+### 6.2 Production Configuration
+
+**Backend Production:**
+
+```bash
+# Install production server
+pip install gunicorn
+
+# Create gunicorn configuration
+touch gunicorn.conf.py
+```
+
+`gunicorn.conf.py`:
+
+```python
+import multiprocessing
+
+bind = "0.0.0.0:8001"
+workers = multiprocessing.cpu_count() * 2 + 1
+worker_class = "uvicorn.workers.UvicornWorker"
+worker_connections = 1000
+max_requests = 10000
+max_requests_jitter = 1000
+timeout = 300
+keepalive = 5
+preload_app = True
+```
+
+**Frontend Production:**
+
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+**Production `.env`:**
+
+```env
+NODE_ENV=production
+LOG_LEVEL=WARNING
+NEXT_PUBLIC_API_URL=https://your-domain.com
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=your-secure-code
+```
+
+## 7. Process Management
+
+### 7.1 Using PM2 (Recommended)
+
+#### Install PM2
+
+```bash
+npm install -g pm2
+```
+
+#### Create PM2 Configuration
+
+Create `ecosystem.config.js`:
+
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'deepwiki-api',
+      script: 'python',
+      args: '-m uvicorn api.main:app --host 0.0.0.0 --port 8001',
+      cwd: '/path/to/deepwiki-open',
+      interpreter: '/path/to/deepwiki-env/bin/python',
+      env: {
+        NODE_ENV: 'production',
+        LOG_LEVEL: 'INFO'
+      },
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '2G',
+      error_file: './logs/api-error.log',
+      out_file: './logs/api-out.log',
+      log_file: './logs/api-combined.log'
+    },
+    {
+      name: 'deepwiki-frontend',
+      script: 'npm',
+      args: 'start',
+      cwd: '/path/to/deepwiki-open',
+      env: {
+        NODE_ENV: 'production',
+        PORT: 3000
+      },
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1G',
+      error_file: './logs/frontend-error.log',
+      out_file: './logs/frontend-out.log',
+      log_file: './logs/frontend-combined.log'
+    }
+  ]
+};
+```
+
+#### PM2 Commands
+
+```bash
+# Start services
+pm2 start ecosystem.config.js
+
+# Monitor services
+pm2 monit
+
+# View logs
+pm2 logs
+
+# Restart services
+pm2 restart all
+
+# Stop services
+pm2 stop all
+
+# Save PM2 configuration
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup
+```
+
+### 7.2 Using systemd (Linux)
+
+#### Backend Service
+
+Create `/etc/systemd/system/deepwiki-api.service`:
+
+```ini
+[Unit]
+Description=DeepWiki API Server
+After=network.target
+
+[Service]
+Type=exec
+User=yourusername
+Group=yourusername
+WorkingDirectory=/path/to/deepwiki-open
+Environment=PATH=/path/to/deepwiki-env/bin
+EnvironmentFile=/path/to/deepwiki-open/.env
+ExecStart=/path/to/deepwiki-env/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8001
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Frontend Service
+
+Create `/etc/systemd/system/deepwiki-frontend.service`:
+
+```ini
+[Unit]
+Description=DeepWiki Frontend Server
+After=network.target deepwiki-api.service
+
+[Service]
+Type=exec
+User=yourusername
+Group=yourusername
+WorkingDirectory=/path/to/deepwiki-open
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/path/to/deepwiki-open/.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### systemd Commands
+
+```bash
+# Reload systemd configuration
+sudo systemctl daemon-reload
+
+# Enable services to start on boot
+sudo systemctl enable deepwiki-api.service
+sudo systemctl enable deepwiki-frontend.service
+
+# Start services
+sudo systemctl start deepwiki-api.service
+sudo systemctl start deepwiki-frontend.service
+
+# Check status
+sudo systemctl status deepwiki-api.service
+sudo systemctl status deepwiki-frontend.service
+
+# View logs
+sudo journalctl -u deepwiki-api.service -f
+sudo journalctl -u deepwiki-frontend.service -f
+```
+
+## 8. Monitoring and Logging Setup
+
+### 8.1 Application Logging
+
+#### Python Logging Configuration
+
+Create `api/logging_config.py`:
+
+```python
+import logging
+import logging.handlers
+import os
+from pathlib import Path
+
+def setup_logging():
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    log_file = os.getenv('LOG_FILE_PATH', './api/logs/application.log')
+    
+    # Create logs directory
+    Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, log_level),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.handlers.RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5
+            )
+        ]
+    )
+```
+
+#### Next.js Logging
+
+Create `src/utils/logger.ts`:
+
+```typescript
+interface LogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  data?: any;
+}
+
+class Logger {
+  private isDevelopment = process.env.NODE_ENV === 'development';
+
+  private log(level: LogEntry['level'], message: string, data?: any) {
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      data
+    };
+
+    if (this.isDevelopment) {
+      console[level](entry);
+    }
+
+    // Send to backend logging endpoint in production
+    if (!this.isDevelopment && level === 'error') {
+      this.sendToServer(entry);
+    }
+  }
+
+  private async sendToServer(entry: LogEntry) {
+    try {
+      await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry)
+      });
+    } catch (error) {
+      console.error('Failed to send log to server:', error);
+    }
+  }
+
+  info(message: string, data?: any) {
+    this.log('info', message, data);
+  }
+
+  warn(message: string, data?: any) {
+    this.log('warn', message, data);
+  }
+
+  error(message: string, data?: any) {
+    this.log('error', message, data);
+  }
+
+  debug(message: string, data?: any) {
+    this.log('debug', message, data);
+  }
+}
+
+export const logger = new Logger();
+```
+
+### 8.2 Health Monitoring
+
+#### Health Check Endpoint
+
+Add to `api/api.py`:
+
+```python
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "0.1.0",
+        "services": {
+            "api": "running",
+            "storage": "accessible" if os.path.exists(os.path.expanduser("~/.adalflow")) else "unavailable"
+        }
+    }
+```
+
+#### Monitoring Script
+
+Create `scripts/monitor.py`:
+
+```python
+#!/usr/bin/env python3
+import requests
+import time
+import sys
+import os
+
+def check_service(url, service_name):
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            print(f"✅ {service_name} is healthy")
+            return True
+        else:
+            print(f"❌ {service_name} returned status {response.status_code}")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"❌ {service_name} is unreachable: {e}")
+        return False
+
+def main():
+    api_url = os.getenv('SERVER_BASE_URL', 'http://localhost:8001')
+    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    
+    services = [
+        (f"{api_url}/health", "API Server"),
+        (frontend_url, "Frontend Server")
+    ]
+    
+    all_healthy = True
+    for url, name in services:
+        if not check_service(url, name):
+            all_healthy = False
+    
+    if not all_healthy:
+        sys.exit(1)
+    
+    print("🎉 All services are healthy!")
+
+if __name__ == "__main__":
+    main()
+```
+
+### 8.3 Performance Monitoring
+
+#### Simple Performance Tracking
+
+Create `scripts/performance_monitor.sh`:
+
+```bash
+#!/bin/bash
+
+# Configuration
+API_URL="http://localhost:8001"
+LOG_FILE="./logs/performance.log"
+
+# Create logs directory
+mkdir -p logs
+
+# Function to log with timestamp
+log_with_timestamp() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"
+}
+
+# Monitor API response time
+monitor_api() {
+    start_time=$(date +%s.%N)
+    response=$(curl -s -w "%{http_code}" -o /dev/null "$API_URL/health")
+    end_time=$(date +%s.%N)
+    
+    response_time=$(echo "$end_time - $start_time" | bc)
+    
+    if [ "$response" = "200" ]; then
+        log_with_timestamp "API_HEALTH_OK response_time=${response_time}s"
+    else
+        log_with_timestamp "API_HEALTH_ERROR http_code=$response"
+    fi
+}
+
+# Monitor system resources
+monitor_resources() {
+    # CPU usage
+    cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+    
+    # Memory usage
+    memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+    
+    # Disk usage
+    disk_usage=$(df -h . | tail -1 | awk '{print $5}' | cut -d'%' -f1)
+    
+    log_with_timestamp "RESOURCES cpu=${cpu_usage}% memory=${memory_usage}% disk=${disk_usage}%"
+}
+
+# Main monitoring loop
+while true; do
+    monitor_api
+    monitor_resources
+    sleep 60  # Monitor every minute
+done
+```
+
+## 9. Backup and Maintenance
+
+### 9.1 Data Backup Strategy
+
+#### Backup Script
+
+Create `scripts/backup.sh`:
+
+```bash
+#!/bin/bash
+
+# Configuration
+BACKUP_DIR="$HOME/deepwiki-backups"
+DATE=$(date +%Y%m%d_%H%M%S)
+BACKUP_NAME="deepwiki_backup_$DATE"
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+# Backup function
+create_backup() {
+    echo "🔄 Starting backup process..."
+    
+    # Create backup folder
+    BACKUP_PATH="$BACKUP_DIR/$BACKUP_NAME"
+    mkdir -p "$BACKUP_PATH"
+    
+    # Backup configuration
+    echo "📁 Backing up configuration..."
+    cp -r api/config "$BACKUP_PATH/"
+    cp .env "$BACKUP_PATH/" 2>/dev/null || echo "No .env file found"
+    
+    # Backup generated wikis
+    echo "📚 Backing up wiki cache..."
+    if [ -d "$HOME/.adalflow/wikicache" ]; then
+        cp -r "$HOME/.adalflow/wikicache" "$BACKUP_PATH/"
+    fi
+    
+    # Backup vector databases
+    echo "🗄️ Backing up databases..."
+    if [ -d "$HOME/.adalflow/databases" ]; then
+        cp -r "$HOME/.adalflow/databases" "$BACKUP_PATH/"
+    fi
+    
+    # Backup logs
+    echo "📊 Backing up logs..."
+    cp -r logs "$BACKUP_PATH/" 2>/dev/null || echo "No logs directory found"
+    
+    # Create archive
+    echo "🗜️ Creating archive..."
+    cd "$BACKUP_DIR"
+    tar -czf "$BACKUP_NAME.tar.gz" "$BACKUP_NAME"
+    rm -rf "$BACKUP_NAME"
+    
+    echo "✅ Backup completed: $BACKUP_DIR/$BACKUP_NAME.tar.gz"
+    
+    # Cleanup old backups (keep last 7 days)
+    find "$BACKUP_DIR" -name "deepwiki_backup_*.tar.gz" -mtime +7 -delete
+    echo "🧹 Cleaned up old backups"
+}
+
+# Restore function
+restore_backup() {
+    if [ -z "$1" ]; then
+        echo "Usage: $0 restore <backup_file>"
+        exit 1
+    fi
+    
+    BACKUP_FILE="$1"
+    if [ ! -f "$BACKUP_FILE" ]; then
+        echo "❌ Backup file not found: $BACKUP_FILE"
+        exit 1
+    fi
+    
+    echo "🔄 Restoring from backup: $BACKUP_FILE"
+    
+    # Extract backup
+    TEMP_DIR=$(mktemp -d)
+    tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
+    
+    # Restore configuration
+    echo "📁 Restoring configuration..."
+    cp -r "$TEMP_DIR"/*/config api/ 2>/dev/null || echo "No config backup found"
+    cp "$TEMP_DIR"/*/.env . 2>/dev/null || echo "No .env backup found"
+    
+    # Restore wiki cache
+    echo "📚 Restoring wiki cache..."
+    mkdir -p "$HOME/.adalflow"
+    cp -r "$TEMP_DIR"/*/wikicache "$HOME/.adalflow/" 2>/dev/null || echo "No wikicache backup found"
+    
+    # Restore databases
+    echo "🗄️ Restoring databases..."
+    cp -r "$TEMP_DIR"/*/databases "$HOME/.adalflow/" 2>/dev/null || echo "No databases backup found"
+    
+    # Cleanup
+    rm -rf "$TEMP_DIR"
+    
+    echo "✅ Restore completed"
+}
+
+# Main script
+case "$1" in
+    "backup")
+        create_backup
+        ;;
+    "restore")
+        restore_backup "$2"
+        ;;
+    *)
+        echo "Usage: $0 {backup|restore <backup_file>}"
+        echo "Example: $0 backup"
+        echo "Example: $0 restore ~/deepwiki-backups/deepwiki_backup_20231201_120000.tar.gz"
+        exit 1
+        ;;
+esac
+```
+
+### 9.2 Maintenance Tasks
+
+#### Database Cleanup Script
+
+Create `scripts/maintenance.py`:
+
+```python
+#!/usr/bin/env python3
+import os
+import shutil
+import glob
+from datetime import datetime, timedelta
+from pathlib import Path
+
+def cleanup_old_repositories(days_old=30):
+    """Remove repositories older than specified days"""
+    repos_dir = Path.home() / ".adalflow" / "repos"
+    if not repos_dir.exists():
+        print("No repositories directory found")
+        return
+    
+    cutoff_date = datetime.now() - timedelta(days=days_old)
+    cleaned_count = 0
+    
+    for repo_dir in repos_dir.iterdir():
+        if repo_dir.is_dir():
+            mod_time = datetime.fromtimestamp(repo_dir.stat().st_mtime)
+            if mod_time < cutoff_date:
+                print(f"Removing old repository: {repo_dir.name}")
+                shutil.rmtree(repo_dir)
+                cleaned_count += 1
+    
+    print(f"Cleaned up {cleaned_count} old repositories")
+
+def cleanup_old_wikis(days_old=30):
+    """Remove wiki cache older than specified days"""
+    wiki_dir = Path.home() / ".adalflow" / "wikicache"
+    if not wiki_dir.exists():
+        print("No wiki cache directory found")
+        return
+    
+    cutoff_date = datetime.now() - timedelta(days=days_old)
+    cleaned_count = 0
+    
+    for wiki_file in wiki_dir.glob("*.json"):
+        mod_time = datetime.fromtimestamp(wiki_file.stat().st_mtime)
+        if mod_time < cutoff_date:
+            print(f"Removing old wiki: {wiki_file.name}")
+            wiki_file.unlink()
+            cleaned_count += 1
+    
+    print(f"Cleaned up {cleaned_count} old wiki files")
+
+def cleanup_logs(days_old=7):
+    """Remove log files older than specified days"""
+    logs_dir = Path("logs")
+    if not logs_dir.exists():
+        print("No logs directory found")
+        return
+    
+    cutoff_date = datetime.now() - timedelta(days=days_old)
+    cleaned_count = 0
+    
+    for log_file in logs_dir.glob("*.log*"):
+        if log_file.is_file():
+            mod_time = datetime.fromtimestamp(log_file.stat().st_mtime)
+            if mod_time < cutoff_date:
+                print(f"Removing old log: {log_file.name}")
+                log_file.unlink()
+                cleaned_count += 1
+    
+    print(f"Cleaned up {cleaned_count} old log files")
+
+def optimize_vector_databases():
+    """Optimize vector databases by removing unused indexes"""
+    db_dir = Path.home() / ".adalflow" / "databases"
+    if not db_dir.exists():
+        print("No databases directory found")
+        return
+    
+    repos_dir = Path.home() / ".adalflow" / "repos"
+    active_repos = set()
+    
+    if repos_dir.exists():
+        active_repos = {repo.name for repo in repos_dir.iterdir() if repo.is_dir()}
+    
+    cleaned_count = 0
+    for db_dir_item in db_dir.iterdir():
+        if db_dir_item.is_dir() and db_dir_item.name not in active_repos:
+            print(f"Removing unused database: {db_dir_item.name}")
+            shutil.rmtree(db_dir_item)
+            cleaned_count += 1
+    
+    print(f"Cleaned up {cleaned_count} unused databases")
+
+def main():
+    print(f"🧹 Starting maintenance tasks at {datetime.now()}")
+    
+    try:
+        cleanup_old_repositories(30)
+        cleanup_old_wikis(30)
+        cleanup_logs(7)
+        optimize_vector_databases()
+        print("✅ Maintenance tasks completed successfully")
+    except Exception as e:
+        print(f"❌ Error during maintenance: {e}")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Automated Maintenance with Cron
+
+Add to crontab (`crontab -e`):
+
+```bash
+# Daily maintenance at 2 AM
+0 2 * * * /path/to/deepwiki-open/scripts/maintenance.py >> /path/to/deepwiki-open/logs/maintenance.log 2>&1
+
+# Weekly backup on Sundays at 3 AM
+0 3 * * 0 /path/to/deepwiki-open/scripts/backup.sh backup >> /path/to/deepwiki-open/logs/backup.log 2>&1
+
+# Performance monitoring every minute
+* * * * * /path/to/deepwiki-open/scripts/performance_monitor.sh
+```
+
+## 10. Troubleshooting
+
+### 10.1 Common Issues and Solutions
+
+#### Python Environment Issues
+
+```bash
+# Issue: ModuleNotFoundError
+# Solution: Verify virtual environment activation
+which python
+pip list | grep fastapi
+
+# Issue: Permission denied
+# Solution: Check file permissions
+chmod +x scripts/*.sh
+chmod +x scripts/*.py
+
+# Issue: Port already in use
+# Solution: Find and kill process
+lsof -ti:8001 | xargs kill -9
+lsof -ti:3000 | xargs kill -9
+```
+
+#### Node.js Issues
+
+```bash
+# Issue: npm ERR! permission denied
+# Solution: Use nvm or fix npm permissions
+npm config set prefix '~/.npm-global'
+export PATH=~/.npm-global/bin:$PATH
+
+# Issue: Module not found
+# Solution: Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+```
+
+#### API Connection Issues
+
+```bash
+# Check if services are running
+curl -I http://localhost:8001/health
+curl -I http://localhost:3000
+
+# Check firewall settings
+# Ubuntu/Debian
+sudo ufw status
+sudo ufw allow 8001
+sudo ufw allow 3000
+
+# CentOS/RHEL
+sudo firewall-cmd --list-ports
+sudo firewall-cmd --add-port=8001/tcp --permanent
+sudo firewall-cmd --add-port=3000/tcp --permanent
+sudo firewall-cmd --reload
+```
+
+### 10.2 Performance Optimization
+
+#### System Optimization
+
+```bash
+# Increase file descriptor limits
+echo "* soft nofile 65536" | sudo tee -a /etc/security/limits.conf
+echo "* hard nofile 65536" | sudo tee -a /etc/security/limits.conf
+
+# Optimize Python performance
+export PYTHONUNBUFFERED=1
+export PYTHONDONTWRITEBYTECODE=1
+
+# Node.js optimization
+export NODE_OPTIONS="--max-old-space-size=4096"
+```
+
+#### Application Optimization
+
+Edit `api/main.py` for production optimizations:
+
+```python
+import uvicorn
+from api.api import app
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "api.api:app",
+        host="0.0.0.0",
+        port=8001,
+        workers=4,  # Adjust based on CPU cores
+        loop="uvloop",  # Performance improvement
+        http="httptools",  # Performance improvement
+        access_log=False,  # Disable in production
+        server_header=False,  # Security
+        date_header=False,  # Performance
+    )
+```
+
+## 11. Security Considerations
+
+### 11.1 API Security
+
+#### Rate Limiting
+
+Add to `api/api.py`:
+
+```python
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+@app.get("/api/wiki/generate")
+@limiter.limit("5/minute")
+async def generate_wiki(request: Request, ...):
+    # Implementation
+    pass
+```
+
+#### Input Validation
+
+```python
+from pydantic import BaseModel, validator
+import re
+
+class RepositoryRequest(BaseModel):
+    repo_url: str
+    access_token: Optional[str] = None
+    
+    @validator('repo_url')
+    def validate_repo_url(cls, v):
+        pattern = r'^https?://(github|gitlab|bitbucket)\.(com|org)/[\w\-\.]+/[\w\-\.]+/?$'
+        if not re.match(pattern, v):
+            raise ValueError('Invalid repository URL format')
+        return v
+```
+
+### 11.2 Environment Security
+
+```bash
+# Secure .env file
+chmod 600 .env
+
+# Use environment-specific configurations
+# Development
+export DEEPWIKI_ENV=development
+
+# Production
+export DEEPWIKI_ENV=production
+```
+
+## 12. Advanced Configuration
+
+### 12.1 Custom Model Configurations
+
+Edit `api/config/generator.json`:
+
+```json
+{
+  "providers": {
+    "google": {
+      "default_model": "gemini-2.0-flash",
+      "models": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.0-pro"],
+      "api_base": "https://generativelanguage.googleapis.com/v1beta",
+      "parameters": {
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "max_tokens": 8192
+      }
+    },
+    "openai": {
+      "default_model": "gpt-4o",
+      "models": ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
+      "api_base": "https://api.openai.com/v1",
+      "parameters": {
+        "temperature": 0.7,
+        "top_p": 1.0,
+        "max_tokens": 4096
+      }
+    }
+  }
+}
+```
+
+### 12.2 Custom Embedding Configuration
+
+Edit `api/config/embedder.json`:
+
+```json
+{
+  "embedder": {
+    "provider": "openai",
+    "model": "text-embedding-ada-002",
+    "dimensions": 1536,
+    "batch_size": 100
+  },
+  "retriever": {
+    "similarity_top_k": 5,
+    "similarity_threshold": 0.7,
+    "vector_store_type": "faiss",
+    "index_type": "IndexFlatIP"
+  },
+  "text_splitter": {
+    "type": "recursive_character",
+    "chunk_size": 1000,
+    "chunk_overlap": 200,
+    "separators": ["\n\n", "\n", " ", ""]
+  }
+}
+```
+
+## Conclusion
+
+This manual setup guide provides comprehensive control over your DeepWiki-Open installation. The manual approach offers:
+
+- **Full Control**: Complete visibility into every component and configuration
+- **Customization**: Ability to modify any aspect of the system
+- **Debugging**: Direct access to logs and processes for troubleshooting
+- **Performance Tuning**: Fine-grained control over resource allocation
+- **Security**: Implementation of custom security measures
+
+Choose the components and configurations that best fit your development workflow and production requirements. Regular maintenance and monitoring will ensure optimal performance and reliability of your DeepWiki-Open installation.
+
+For additional support, refer to the project's GitHub repository or community forums.

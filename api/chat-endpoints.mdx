@@ -1,0 +1,1056 @@
+---
+title: "Chat API Endpoints"
+description: "Complete API reference for chat functionality with streaming, research, and real-time features"
+---
+
+# Chat API Endpoints
+
+DeepWikiOpen provides powerful chat capabilities with streaming responses, deep research mode, conversation management, and real-time WebSocket connections.
+
+## Authentication
+
+All chat endpoints require authentication using Bearer tokens:
+
+```bash
+Authorization: Bearer <your-api-key>
+```
+
+## Rate Limits
+
+- **Standard Chat**: 100 requests per minute
+- **Research Mode**: 20 requests per minute  
+- **WebSocket**: 1000 messages per minute
+- **History Operations**: 200 requests per minute
+
+---
+
+## POST /chat/stream
+
+Stream chat responses with RAG (Retrieval-Augmented Generation) capabilities.
+
+<ParamField path="message" type="string" required>
+  The user's message or question
+</ParamField>
+
+<ParamField path="conversation_id" type="string">
+  Unique identifier for conversation continuity. Auto-generated if not provided.
+</ParamField>
+
+<ParamField path="model" type="string" default="gpt-4-turbo">
+  AI model to use for response generation
+  
+  Options: `gpt-4-turbo`, `gpt-3.5-turbo`, `claude-3-opus`, `claude-3-sonnet`
+</ParamField>
+
+<ParamField path="temperature" type="number" default="0.7">
+  Response creativity (0.0 to 2.0)
+</ParamField>
+
+<ParamField path="max_tokens" type="number" default="2048">
+  Maximum response length (1 to 4096)
+</ParamField>
+
+<ParamField path="context_sources" type="array">
+  Specific knowledge sources to query
+  
+  Options: `wikipedia`, `academic_papers`, `news`, `documentation`, `all`
+</ParamField>
+
+<ParamField path="stream_options" type="object">
+  Streaming configuration options
+  
+  <ParamField path="include_sources" type="boolean" default="true">
+    Include source citations in stream
+  </ParamField>
+  
+  <ParamField path="include_metadata" type="boolean" default="false">
+    Include processing metadata
+  </ParamField>
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+
+```bash curl
+curl -X POST "https://api.deepwikiopen.com/chat/stream" \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Explain quantum computing and its applications",
+    "conversation_id": "conv_123",
+    "model": "gpt-4-turbo",
+    "temperature": 0.7,
+    "context_sources": ["wikipedia", "academic_papers"],
+    "stream_options": {
+      "include_sources": true,
+      "include_metadata": true
+    }
+  }'
+```
+
+```python Python
+import requests
+import json
+
+def stream_chat(message):
+    url = "https://api.deepwikiopen.com/chat/stream"
+    headers = {
+        "Authorization": "Bearer your-api-key",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "message": message,
+        "model": "gpt-4-turbo",
+        "temperature": 0.7,
+        "context_sources": ["wikipedia", "academic_papers"],
+        "stream_options": {
+            "include_sources": True
+        }
+    }
+    
+    response = requests.post(url, headers=headers, json=data, stream=True)
+    
+    for line in response.iter_lines():
+        if line:
+            decoded_line = line.decode('utf-8')
+            if decoded_line.startswith('data: '):
+                try:
+                    chunk = json.loads(decoded_line[6:])
+                    if chunk.get('type') == 'content':
+                        print(chunk['content'], end='', flush=True)
+                except json.JSONDecodeError:
+                    pass
+
+stream_chat("Explain quantum computing and its applications")
+```
+
+```javascript JavaScript
+async function streamChat(message) {
+  const response = await fetch('https://api.deepwikiopen.com/chat/stream', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer your-api-key',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: message,
+      model: 'gpt-4-turbo',
+      temperature: 0.7,
+      context_sources: ['wikipedia', 'academic_papers'],
+      stream_options: {
+        include_sources: true
+      }
+    })
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'content') {
+              process.stdout.write(data.content);
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+streamChat('Explain quantum computing and its applications');
+```
+
+</CodeGroup>
+
+### Streaming Response Format (SSE)
+
+The response is streamed using Server-Sent Events (SSE) format:
+
+<ResponseField name="type" type="string">
+  Type of stream chunk
+  
+  Values: `start`, `content`, `sources`, `metadata`, `end`, `error`
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  Text content (for `content` type chunks)
+</ResponseField>
+
+<ResponseField name="sources" type="array">
+  Retrieved knowledge sources (for `sources` type chunks)
+  
+  <ResponseField name="title" type="string">
+    Source document title
+  </ResponseField>
+  
+  <ResponseField name="url" type="string">
+    Source URL or identifier
+  </ResponseField>
+  
+  <ResponseField name="snippet" type="string">
+    Relevant text excerpt
+  </ResponseField>
+  
+  <ResponseField name="relevance_score" type="number">
+    Relevance score (0.0 to 1.0)
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  Processing metadata (for `metadata` type chunks)
+  
+  <ResponseField name="tokens_used" type="number">
+    Total tokens consumed
+  </ResponseField>
+  
+  <ResponseField name="processing_time" type="number">
+    Processing time in milliseconds
+  </ResponseField>
+  
+  <ResponseField name="sources_queried" type="number">
+    Number of sources searched
+  </ResponseField>
+</ResponseField>
+
+### Example Stream Response
+
+```
+data: {"type": "start", "conversation_id": "conv_123", "timestamp": "2024-01-15T10:30:00Z"}
+
+data: {"type": "content", "content": "Quantum computing is a revolutionary"}
+
+data: {"type": "content", "content": " approach to computation that leverages"}
+
+data: {"type": "sources", "sources": [
+  {
+    "title": "Quantum Computing - Wikipedia",
+    "url": "https://en.wikipedia.org/wiki/Quantum_computing",
+    "snippet": "Quantum computing is a type of computation whose operations can harness the phenomena of quantum mechanics...",
+    "relevance_score": 0.92
+  }
+]}
+
+data: {"type": "content", "content": " quantum mechanical phenomena..."}
+
+data: {"type": "metadata", "metadata": {"tokens_used": 156, "processing_time": 1250, "sources_queried": 5}}
+
+data: {"type": "end", "conversation_id": "conv_123", "total_tokens": 156}
+```
+
+---
+
+## POST /chat/research
+
+Trigger deep research mode for comprehensive, multi-source analysis.
+
+<ParamField path="query" type="string" required>
+  Research question or topic
+</ParamField>
+
+<ParamField path="research_depth" type="string" default="standard">
+  Depth of research analysis
+  
+  Options: `quick`, `standard`, `deep`, `comprehensive`
+</ParamField>
+
+<ParamField path="source_types" type="array">
+  Types of sources to include in research
+  
+  Options: `academic`, `wikipedia`, `news`, `documentation`, `books`, `patents`
+</ParamField>
+
+<ParamField path="time_range" type="object">
+  Filter sources by publication date
+  
+  <ParamField path="start_date" type="string">
+    Start date (ISO 8601 format)
+  </ParamField>
+  
+  <ParamField path="end_date" type="string">
+    End date (ISO 8601 format)
+  </ParamField>
+</ParamField>
+
+<ParamField path="max_sources" type="number" default="20">
+  Maximum number of sources to analyze (5 to 100)
+</ParamField>
+
+<ParamField path="output_format" type="string" default="structured">
+  Response format structure
+  
+  Options: `structured`, `narrative`, `bullet_points`, `academic`
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+
+```bash curl
+curl -X POST "https://api.deepwikiopen.com/chat/research" \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Latest developments in CRISPR gene editing 2024",
+    "research_depth": "deep",
+    "source_types": ["academic", "news", "patents"],
+    "time_range": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-12-31"
+    },
+    "max_sources": 50,
+    "output_format": "structured"
+  }'
+```
+
+```python Python
+import requests
+
+def deep_research(query):
+    url = "https://api.deepwikiopen.com/chat/research"
+    headers = {
+        "Authorization": "Bearer your-api-key",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "query": query,
+        "research_depth": "deep",
+        "source_types": ["academic", "news", "patents"],
+        "time_range": {
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31"
+        },
+        "max_sources": 50,
+        "output_format": "structured"
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    return response.json()
+
+result = deep_research("Latest developments in CRISPR gene editing 2024")
+print(result)
+```
+
+```javascript JavaScript
+async function deepResearch(query) {
+  const response = await fetch('https://api.deepwikiopen.com/chat/research', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer your-api-key',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      query: query,
+      research_depth: 'deep',
+      source_types: ['academic', 'news', 'patents'],
+      time_range: {
+        start_date: '2024-01-01',
+        end_date: '2024-12-31'
+      },
+      max_sources: 50,
+      output_format: 'structured'
+    })
+  });
+
+  return await response.json();
+}
+
+deepResearch('Latest developments in CRISPR gene editing 2024')
+  .then(result => console.log(result));
+```
+
+</CodeGroup>
+
+### Response Format
+
+<ResponseField name="research_id" type="string">
+  Unique identifier for the research session
+</ResponseField>
+
+<ResponseField name="query" type="string">
+  Original research query
+</ResponseField>
+
+<ResponseField name="summary" type="string">
+  Executive summary of findings
+</ResponseField>
+
+<ResponseField name="key_findings" type="array">
+  Main discoveries and insights
+  
+  <ResponseField name="finding" type="string">
+    Key insight or discovery
+  </ResponseField>
+  
+  <ResponseField name="confidence" type="number">
+    Confidence score (0.0 to 1.0)
+  </ResponseField>
+  
+  <ResponseField name="supporting_sources" type="array">
+    Sources supporting this finding
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="detailed_analysis" type="string">
+  Comprehensive analysis text
+</ResponseField>
+
+<ResponseField name="sources" type="array">
+  All sources analyzed
+  
+  <ResponseField name="title" type="string">
+    Source title
+  </ResponseField>
+  
+  <ResponseField name="authors" type="array">
+    Author names
+  </ResponseField>
+  
+  <ResponseField name="publication_date" type="string">
+    Publication date
+  </ResponseField>
+  
+  <ResponseField name="url" type="string">
+    Source URL
+  </ResponseField>
+  
+  <ResponseField name="relevance_score" type="number">
+    Relevance to query (0.0 to 1.0)
+  </ResponseField>
+  
+  <ResponseField name="key_points" type="array">
+    Important points from source
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="research_metadata" type="object">
+  Research session metadata
+  
+  <ResponseField name="sources_analyzed" type="number">
+    Total sources processed
+  </ResponseField>
+  
+  <ResponseField name="processing_time" type="number">
+    Time taken in seconds
+  </ResponseField>
+  
+  <ResponseField name="confidence_score" type="number">
+    Overall confidence in findings
+  </ResponseField>
+</ResponseField>
+
+---
+
+## GET /chat/history
+
+Retrieve conversation history for a specific conversation or user.
+
+<ParamField query="conversation_id" type="string">
+  Specific conversation ID to retrieve
+</ParamField>
+
+<ParamField query="user_id" type="string">
+  User ID to get all conversations for
+</ParamField>
+
+<ParamField query="limit" type="number" default="50">
+  Maximum number of messages to return (1 to 1000)
+</ParamField>
+
+<ParamField query="offset" type="number" default="0">
+  Number of messages to skip for pagination
+</ParamField>
+
+<ParamField query="start_date" type="string">
+  Filter messages after this date (ISO 8601)
+</ParamField>
+
+<ParamField query="end_date" type="string">
+  Filter messages before this date (ISO 8601)
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+
+```bash curl
+curl -X GET "https://api.deepwikiopen.com/chat/history?conversation_id=conv_123&limit=100" \
+  -H "Authorization: Bearer your-api-key"
+```
+
+```python Python
+import requests
+
+def get_chat_history(conversation_id, limit=50):
+    url = f"https://api.deepwikiopen.com/chat/history"
+    headers = {"Authorization": "Bearer your-api-key"}
+    
+    params = {
+        "conversation_id": conversation_id,
+        "limit": limit
+    }
+    
+    response = requests.get(url, headers=headers, params=params)
+    return response.json()
+
+history = get_chat_history("conv_123", limit=100)
+```
+
+```javascript JavaScript
+async function getChatHistory(conversationId, limit = 50) {
+  const params = new URLSearchParams({
+    conversation_id: conversationId,
+    limit: limit.toString()
+  });
+
+  const response = await fetch(`https://api.deepwikiopen.com/chat/history?${params}`, {
+    headers: {
+      'Authorization': 'Bearer your-api-key'
+    }
+  });
+
+  return await response.json();
+}
+
+getChatHistory('conv_123', 100);
+```
+
+</CodeGroup>
+
+### Response Format
+
+<ResponseField name="conversation_id" type="string">
+  Conversation identifier
+</ResponseField>
+
+<ResponseField name="messages" type="array">
+  Array of conversation messages
+  
+  <ResponseField name="id" type="string">
+    Unique message identifier
+  </ResponseField>
+  
+  <ResponseField name="role" type="string">
+    Message sender role
+    
+    Values: `user`, `assistant`, `system`
+  </ResponseField>
+  
+  <ResponseField name="content" type="string">
+    Message content
+  </ResponseField>
+  
+  <ResponseField name="timestamp" type="string">
+    Message timestamp (ISO 8601)
+  </ResponseField>
+  
+  <ResponseField name="metadata" type="object">
+    Additional message data
+    
+    <ResponseField name="model_used" type="string">
+      AI model that generated response
+    </ResponseField>
+    
+    <ResponseField name="tokens_used" type="number">
+      Tokens consumed for this message
+    </ResponseField>
+    
+    <ResponseField name="sources" type="array">
+      Knowledge sources used
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="pagination" type="object">
+  Pagination information
+  
+  <ResponseField name="total_messages" type="number">
+    Total messages in conversation
+  </ResponseField>
+  
+  <ResponseField name="has_more" type="boolean">
+    Whether more messages are available
+  </ResponseField>
+  
+  <ResponseField name="next_offset" type="number">
+    Offset for next page
+  </ResponseField>
+</ResponseField>
+
+---
+
+## DELETE /chat/history
+
+Clear conversation history for a specific conversation or user.
+
+<ParamField path="conversation_id" type="string">
+  Specific conversation to clear (optional if user_id provided)
+</ParamField>
+
+<ParamField path="user_id" type="string">
+  Clear all conversations for user (optional if conversation_id provided)
+</ParamField>
+
+<ParamField path="before_date" type="string">
+  Only clear messages before this date (ISO 8601)
+</ParamField>
+
+### Request Example
+
+<CodeGroup>
+
+```bash curl
+curl -X DELETE "https://api.deepwikiopen.com/chat/history" \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_id": "conv_123"
+  }'
+```
+
+```python Python
+import requests
+
+def clear_chat_history(conversation_id):
+    url = "https://api.deepwikiopen.com/chat/history"
+    headers = {
+        "Authorization": "Bearer your-api-key",
+        "Content-Type": "application/json"
+    }
+    
+    data = {"conversation_id": conversation_id}
+    response = requests.delete(url, headers=headers, json=data)
+    return response.json()
+
+result = clear_chat_history("conv_123")
+```
+
+```javascript JavaScript
+async function clearChatHistory(conversationId) {
+  const response = await fetch('https://api.deepwikiopen.com/chat/history', {
+    method: 'DELETE',
+    headers: {
+      'Authorization': 'Bearer your-api-key',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      conversation_id: conversationId
+    })
+  });
+
+  return await response.json();
+}
+
+clearChatHistory('conv_123');
+```
+
+</CodeGroup>
+
+### Response Format
+
+<ResponseField name="success" type="boolean">
+  Whether the operation was successful
+</ResponseField>
+
+<ResponseField name="messages_deleted" type="number">
+  Number of messages deleted
+</ResponseField>
+
+<ResponseField name="conversations_affected" type="number">
+  Number of conversations affected
+</ResponseField>
+
+---
+
+## WebSocket /ws/chat
+
+Real-time bidirectional chat connection with live streaming and collaborative features.
+
+### Connection URL
+
+```
+wss://api.deepwikiopen.com/ws/chat?token=your-api-key&conversation_id=conv_123
+```
+
+### Query Parameters
+
+<ParamField query="token" type="string" required>
+  Your API authentication token
+</ParamField>
+
+<ParamField query="conversation_id" type="string">
+  Conversation ID to connect to (auto-generated if not provided)
+</ParamField>
+
+<ParamField query="user_id" type="string">
+  User identifier for multi-user conversations
+</ParamField>
+
+### Connection Example
+
+<CodeGroup>
+
+```javascript JavaScript
+const ws = new WebSocket('wss://api.deepwikiopen.com/ws/chat?token=your-api-key&conversation_id=conv_123');
+
+ws.onopen = function(event) {
+  console.log('Connected to chat WebSocket');
+  
+  // Send initial message
+  ws.send(JSON.stringify({
+    type: 'message',
+    content: 'Hello, can you help me with quantum computing?',
+    model: 'gpt-4-turbo'
+  }));
+};
+
+ws.onmessage = function(event) {
+  const data = JSON.parse(event.data);
+  console.log('Received:', data);
+  
+  switch(data.type) {
+    case 'content':
+      // Stream AI response content
+      process.stdout.write(data.content);
+      break;
+    case 'user_message':
+      // Another user's message in group chat
+      console.log(`${data.user}: ${data.content}`);
+      break;
+    case 'typing':
+      // Typing indicator
+      console.log(`${data.user} is typing...`);
+      break;
+  }
+};
+
+ws.onerror = function(error) {
+  console.error('WebSocket error:', error);
+};
+
+ws.onclose = function(event) {
+  console.log('Disconnected from chat WebSocket');
+};
+```
+
+```python Python
+import asyncio
+import websockets
+import json
+
+async def chat_websocket():
+    uri = "wss://api.deepwikiopen.com/ws/chat?token=your-api-key&conversation_id=conv_123"
+    
+    async with websockets.connect(uri) as websocket:
+        # Send initial message
+        await websocket.send(json.dumps({
+            "type": "message",
+            "content": "Hello, can you help me with quantum computing?",
+            "model": "gpt-4-turbo"
+        }))
+        
+        # Listen for responses
+        async for message in websocket:
+            data = json.loads(message)
+            
+            if data["type"] == "content":
+                print(data["content"], end="", flush=True)
+            elif data["type"] == "user_message":
+                print(f"\n{data['user']}: {data['content']}")
+            elif data["type"] == "typing":
+                print(f"\n{data['user']} is typing...")
+
+# Run the WebSocket client
+asyncio.run(chat_websocket())
+```
+
+</CodeGroup>
+
+### Message Types
+
+#### Client to Server Messages
+
+<ResponseField name="type" type="string" required>
+  Message type
+  
+  Values: `message`, `typing`, `stop_generation`, `join_room`, `leave_room`
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  Message content (for `message` type)
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  AI model to use (for `message` type)
+</ResponseField>
+
+<ResponseField name="room_id" type="string">
+  Room to join/leave (for room operations)
+</ResponseField>
+
+#### Server to Client Messages
+
+<ResponseField name="type" type="string">
+  Response type
+  
+  Values: `content`, `sources`, `user_message`, `typing`, `error`, `connection_info`
+</ResponseField>
+
+<ResponseField name="content" type="string">
+  Response content or user message
+</ResponseField>
+
+<ResponseField name="user" type="string">
+  Username for user messages and typing indicators
+</ResponseField>
+
+<ResponseField name="conversation_id" type="string">
+  Current conversation identifier
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Error information (for `error` type)
+  
+  <ResponseField name="code" type="string">
+    Error code
+  </ResponseField>
+  
+  <ResponseField name="message" type="string">
+    Error description
+  </ResponseField>
+</ResponseField>
+
+### Real-time Features
+
+#### Typing Indicators
+```javascript
+// Send typing indicator
+ws.send(JSON.stringify({
+  type: 'typing',
+  is_typing: true
+}));
+
+// Stop typing indicator
+ws.send(JSON.stringify({
+  type: 'typing',
+  is_typing: false
+}));
+```
+
+#### Multi-user Chat Rooms
+```javascript
+// Join a chat room
+ws.send(JSON.stringify({
+  type: 'join_room',
+  room_id: 'quantum_physics_discussion'
+}));
+
+// Leave a chat room
+ws.send(JSON.stringify({
+  type: 'leave_room',
+  room_id: 'quantum_physics_discussion'
+}));
+```
+
+#### Stop AI Generation
+```javascript
+// Stop the AI from generating more content
+ws.send(JSON.stringify({
+  type: 'stop_generation'
+}));
+```
+
+---
+
+## Error Handling
+
+### HTTP Error Codes
+
+<ResponseField name="400" type="Bad Request">
+  Invalid request parameters or malformed JSON
+</ResponseField>
+
+<ResponseField name="401" type="Unauthorized">
+  Missing or invalid API key
+</ResponseField>
+
+<ResponseField name="403" type="Forbidden">
+  Insufficient permissions or quota exceeded
+</ResponseField>
+
+<ResponseField name="404" type="Not Found">
+  Conversation or resource not found
+</ResponseField>
+
+<ResponseField name="429" type="Too Many Requests">
+  Rate limit exceeded
+</ResponseField>
+
+<ResponseField name="500" type="Internal Server Error">
+  Server error - try again later
+</ResponseField>
+
+### Error Response Format
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Rate limit exceeded. Try again in 60 seconds.",
+    "details": {
+      "retry_after": 60,
+      "current_usage": 100,
+      "limit": 100
+    }
+  }
+}
+```
+
+### WebSocket Error Codes
+
+<ResponseField name="4000" type="Invalid Token">
+  Authentication token is invalid or expired
+</ResponseField>
+
+<ResponseField name="4001" type="Rate Limited">
+  Too many messages sent too quickly
+</ResponseField>
+
+<ResponseField name="4002" type="Invalid Message">
+  Message format is invalid or unsupported
+</ResponseField>
+
+<ResponseField name="4003" type="Conversation Not Found">
+  Specified conversation ID doesn't exist
+</ResponseField>
+
+---
+
+## Real Conversation Examples
+
+### Basic Q&A with Streaming
+
+```bash
+# Request
+curl -X POST "https://api.deepwikiopen.com/chat/stream" \
+  -H "Authorization: Bearer demo-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What causes climate change?",
+    "context_sources": ["wikipedia", "academic_papers"]
+  }'
+
+# Streaming Response
+data: {"type": "start", "conversation_id": "conv_abc123"}
+
+data: {"type": "content", "content": "Climate change is primarily caused by human activities that increase"}
+
+data: {"type": "content", "content": " greenhouse gas concentrations in the atmosphere. The main causes include:"}
+
+data: {"type": "sources", "sources": [
+  {
+    "title": "Climate Change - IPCC Report 2023",
+    "url": "https://www.ipcc.ch/report/ar6/",
+    "snippet": "Human influence has unequivocally warmed the planet...",
+    "relevance_score": 0.95
+  }
+]}
+
+data: {"type": "content", "content": "\n\n**1. Fossil Fuel Combustion**\nBurning coal, oil, and natural gas..."}
+
+data: {"type": "end", "conversation_id": "conv_abc123", "total_tokens": 342}
+```
+
+### Deep Research Mode
+
+```bash
+# Research Request
+curl -X POST "https://api.deepwikiopen.com/chat/research" \
+  -H "Authorization: Bearer demo-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Impact of AI on healthcare diagnostics",
+    "research_depth": "comprehensive",
+    "source_types": ["academic", "news", "documentation"],
+    "max_sources": 25
+  }'
+
+# Response (truncated for brevity)
+{
+  "research_id": "research_xyz789",
+  "query": "Impact of AI on healthcare diagnostics",
+  "summary": "AI is revolutionizing healthcare diagnostics through machine learning algorithms that can analyze medical images, predict disease outcomes, and assist in early detection with unprecedented accuracy...",
+  "key_findings": [
+    {
+      "finding": "AI diagnostic systems show 94% accuracy in detecting skin cancer vs 86% for dermatologists",
+      "confidence": 0.92,
+      "supporting_sources": ["Nature Medicine 2024", "JAMA Dermatology 2024"]
+    }
+  ],
+  "sources": [
+    {
+      "title": "AI in Medical Diagnosis: A Systematic Review",
+      "authors": ["Smith, J.", "Chen, L.", "Kumar, R."],
+      "publication_date": "2024-03-15",
+      "url": "https://doi.org/10.1038/s41591-024-2847-2",
+      "relevance_score": 0.96,
+      "key_points": [
+        "Machine learning models outperform traditional diagnostic methods",
+        "Reduced diagnostic errors by 23% in clinical trials"
+      ]
+    }
+  ]
+}
+```
+
+### WebSocket Multi-user Chat
+
+```javascript
+// User A connects and sends message
+const wsA = new WebSocket('wss://api.deepwikiopen.com/ws/chat?token=user-a-key&room_id=ai_discussion');
+
+wsA.send(JSON.stringify({
+  type: 'message',
+  content: 'What are the latest developments in transformer models?'
+}));
+
+// User B receives the message and AI response
+// Message from User A: {"type": "user_message", "user": "UserA", "content": "What are..."}
+// AI starts responding: {"type": "content", "content": "The latest developments..."}
+
+// User B sends a follow-up
+const wsB = new WebSocket('wss://api.deepwikiopen.com/ws/chat?token=user-b-key&room_id=ai_discussion');
+
+wsB.send(JSON.stringify({
+  type: 'message',
+  content: 'Can you elaborate on attention mechanisms?'
+}));
+```
+
+## SDK Libraries
+
+For easier integration, use our official SDK libraries:
+
+- **Python**: `pip install deepwikiopen`
+- **JavaScript/Node.js**: `npm install deepwikiopen-sdk`
+- **Go**: `go get github.com/deepwikiopen/go-sdk`
+- **Rust**: `cargo add deepwikiopen`
+
+Each SDK provides typed interfaces, automatic retry logic, streaming support, and WebSocket management.

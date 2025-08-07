@@ -1,0 +1,705 @@
+---
+title: "Wiki Generation Guide"
+description: "Complete guide to generating comprehensive documentation wikis with AI-powered analysis and visualization"
+---
+
+DeepWiki-Open's core feature is intelligent wiki generation that transforms any repository into comprehensive, navigable documentation. This guide covers all aspects of wiki generation, customization, and optimization.
+
+## How Wiki Generation Works
+
+<Steps>
+<Step title="Repository Analysis">
+DeepWiki clones and analyzes the repository structure, identifying:
+- File types and programming languages
+- Directory organization and architecture patterns
+- Dependencies and configuration files
+- Documentation and README files
+- Test structures and examples
+
+<Check>
+Repository successfully analyzed and indexed
+</Check>
+</Step>
+
+<Step title="Code Embedding">
+Creates vector embeddings of code content for intelligent retrieval:
+- Function and class definitions
+- Comments and documentation
+- Configuration settings
+- API endpoints and interfaces
+- Database schemas and models
+
+<Info>
+Embeddings enable semantic search and context-aware documentation generation.
+</Info>
+</Step>
+
+<Step title="AI-Powered Documentation">
+Uses your selected AI model to generate:
+- Project overview and purpose
+- Installation and setup instructions
+- Architecture explanations
+- Component relationships
+- Usage examples and best practices
+
+<Tip>
+Different AI models produce varying documentation styles. Experiment to find your preference.
+</Tip>
+</Step>
+
+<Step title="Visual Diagram Generation">
+Automatically creates Mermaid diagrams showing:
+- System architecture
+- Data flow and processing
+- Component relationships
+- Database schemas
+- API endpoint structures
+
+<Check>
+Interactive diagrams generated and embedded in documentation
+</Check>
+</Step>
+</Steps>
+
+## Generation Options
+
+### Model Selection
+
+Choose the best AI model for your documentation needs:
+
+<Tabs>
+<Tab title="Google Gemini (Recommended)">
+**Best for:** Fast, reliable documentation generation
+
+- **`gemini-2.0-flash`** - Latest model with excellent speed/quality balance
+- **`gemini-1.5-flash`** - Previous generation, very stable
+- **`gemini-1.0-pro`** - More detailed but slower
+
+**Strengths:**
+- Excellent code understanding
+- Fast generation times
+- Good diagram creation
+- Strong multilingual support
+
+**Use when:** You want reliable, fast documentation for most projects
+</Tab>
+
+<Tab title="OpenAI GPT">
+**Best for:** Detailed, high-quality documentation
+
+- **`gpt-4o`** - Latest GPT-4 with multimodal capabilities
+- **`o1`** - Reasoning-focused model for complex analysis
+- **`o3`** - Advanced reasoning and analysis
+- **`o4-mini`** - Lightweight but capable option
+
+**Strengths:**
+- Exceptional writing quality
+- Deep technical analysis
+- Excellent code explanations
+- Strong architectural insights
+
+**Use when:** You need detailed, publication-quality documentation
+</Tab>
+
+<Tab title="OpenRouter">
+**Best for:** Model comparison and specialized needs
+
+- **`anthropic/claude-3.5-sonnet`** - Excellent code analysis
+- **`deepseek/deepseek-r1`** - Strong reasoning capabilities
+- **`openai/gpt-4o`** - GPT-4 through OpenRouter
+- **100+ other models** available
+
+**Strengths:**
+- Access to multiple providers
+- Easy model comparison
+- Specialized models for specific tasks
+- Cost optimization options
+
+**Use when:** You want to experiment with different models or need specific capabilities
+</Tab>
+
+<Tab title="Local Models (Ollama)">
+**Best for:** Privacy, cost control, offline generation
+
+- **`llama3:8b`** - Good balance of quality and speed
+- **`qwen3:8b`** - Excellent for code understanding
+- **`qwen3:1.7b`** - Lightweight for smaller projects
+
+**Strengths:**
+- Complete data privacy
+- No API costs
+- Offline capability
+- Customizable models
+
+**Use when:** Privacy is critical or you want to avoid API costs
+</Tab>
+</Tabs>
+
+### Generation Parameters
+
+<AccordionGroup>
+<Accordion title="Force Regeneration">
+**When to use:**
+- Repository has been significantly updated
+- You want to try a different AI model
+- Previous generation had errors
+- You want fresh documentation with latest model improvements
+
+```javascript
+{
+  "force_regenerate": true,
+  "reason": "Updated to use new architecture patterns"
+}
+```
+
+<Warning>
+Force regeneration will overwrite existing cached documentation. Consider backing up important custom modifications.
+</Warning>
+</Accordion>
+
+<Accordion title="Repository Access Tokens">
+**Required for:**
+- Private GitHub repositories
+- Private GitLab repositories  
+- Private BitBucket repositories
+- Organizations with restricted access
+
+**Token permissions needed:**
+- GitHub: `repo` scope (full repository access)
+- GitLab: `read_repository` scope
+- BitBucket: `Repositories: Read` permission
+
+```javascript
+{
+  "repo_url": "https://github.com/company/private-repo",
+  "access_token": "ghp_xxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+<Info>
+Tokens are used only for repository access and are not stored permanently.
+</Info>
+</Accordion>
+
+<Accordion title="Custom Model Parameters">
+Advanced users can adjust model parameters:
+
+```javascript
+{
+  "model_config": {
+    "temperature": 0.7,      // Creativity vs consistency (0.0-1.0)
+    "top_p": 0.8,           // Response diversity (0.0-1.0) 
+    "max_tokens": 4000,     // Maximum response length
+    "top_k": 20             // Token selection diversity (Gemini only)
+  }
+}
+```
+
+**Parameter effects:**
+- **Lower temperature** (0.1-0.3): More consistent, factual documentation
+- **Higher temperature** (0.7-0.9): More creative, varied explanations
+- **Lower top_p** (0.3-0.5): More focused responses
+- **Higher top_p** (0.8-1.0): More diverse vocabulary and examples
+</Accordion>
+</AccordionGroup>
+
+## Repository Types & Optimization
+
+### Programming Languages
+
+DeepWiki optimizes documentation generation for different languages:
+
+<Tabs>
+<Tab title="Web Development">
+**JavaScript/TypeScript:**
+- React, Vue, Angular component analysis
+- Node.js server architecture
+- API endpoint documentation
+- Package.json and dependency analysis
+
+**Python:**
+- Django/Flask application structure
+- FastAPI endpoint documentation
+- Class and function analysis
+- Requirements and virtual environment setup
+
+**Examples:**
+- Express.js servers → API endpoint documentation
+- React apps → Component hierarchy and props
+- Django projects → Model, view, template analysis
+</Tab>
+
+<Tab title="Mobile Development">
+**React Native:**
+- Screen navigation flow
+- Component reusability analysis
+- Platform-specific implementations
+- Build and deployment processes
+
+**Flutter:**
+- Widget tree analysis
+- State management patterns
+- Platform channel documentation
+- Build configuration explanation
+
+**iOS/Android:**
+- Native architecture patterns
+- Framework usage analysis
+- Build system documentation
+- Platform-specific features
+</Tab>
+
+<Tab title="Backend & Infrastructure">
+**Go:**
+- Package structure analysis
+- HTTP handler documentation
+- Goroutine usage patterns
+- Build and deployment guides
+
+**Java/Kotlin:**
+- Spring Boot application analysis
+- Maven/Gradle build documentation
+- Package structure explanation
+- Configuration analysis
+
+**C#/.NET:**
+- Solution and project analysis
+- ASP.NET Core documentation
+- NuGet package analysis
+- Configuration and appsettings
+</Tab>
+
+<Tab title="Data & ML">
+**Python (Data Science):**
+- Jupyter notebook analysis
+- Data pipeline documentation
+- Model architecture explanation
+- Requirements and environment setup
+
+**R:**
+- Package and function analysis
+- Statistical analysis documentation
+- Data workflow explanation
+- Visualization code explanation
+
+**SQL:**
+- Database schema analysis
+- Query optimization documentation
+- Stored procedure explanation
+- Migration and setup guides
+</Tab>
+</Tabs>
+
+### Repository Size Optimization
+
+<AccordionGroup>
+<Accordion title="Small Repositories (< 50 files)">
+**Characteristics:**
+- Fast generation (30 seconds - 2 minutes)
+- Comprehensive coverage of all files
+- Detailed analysis of each component
+
+**Optimization tips:**
+- Use any model (all will perform well)
+- Enable detailed analysis
+- Include all file types
+- Generate comprehensive diagrams
+
+**Example repositories:**
+- Personal projects
+- Small libraries
+- Configuration repositories
+- Simple applications
+</Accordion>
+
+<Accordion title="Medium Repositories (50-500 files)">
+**Characteristics:**
+- Moderate generation time (2-10 minutes)
+- Focus on important files and patterns
+- Good balance of detail and overview
+
+**Optimization tips:**
+- Use fast models like `gemini-2.0-flash`
+- Focus on core directories
+- Skip generated/compiled files
+- Prioritize documented code
+
+**Example repositories:**
+- Open source libraries
+- Medium-sized applications
+- Framework implementations
+- Multi-component projects
+</Accordion>
+
+<Accordion title="Large Repositories (500+ files)">
+**Characteristics:**
+- Longer generation time (10-30 minutes)
+- High-level architecture focus
+- Selective detailed analysis
+- Emphasis on main components
+
+**Optimization tips:**
+- Use efficient models (Gemini Flash series)
+- Configure file filters
+- Focus on main source directories
+- Skip test files for initial generation
+- Use incremental regeneration
+
+**Example repositories:**
+- Large frameworks (React, Vue, Angular)
+- Enterprise applications
+- Monorepos with multiple projects
+- Complex distributed systems
+</Accordion>
+</AccordionGroup>
+
+## Customizing Generated Documentation
+
+### Content Customization
+
+<Steps>
+<Step title="Repository-Specific Prompts">
+DeepWiki automatically adapts to repository types, but you can customize the focus:
+
+```javascript
+{
+  "focus_areas": [
+    "architecture_patterns",
+    "api_documentation", 
+    "deployment_setup",
+    "security_implementation"
+  ],
+  "exclude_areas": [
+    "test_files",
+    "generated_code",
+    "vendor_dependencies"
+  ]
+}
+```
+</Step>
+
+<Step title="Documentation Depth">
+Control the level of detail in generated documentation:
+
+- **High Detail**: Complete analysis of all components
+- **Medium Detail**: Focus on public APIs and main components
+- **Overview**: High-level architecture and key features only
+
+```javascript
+{
+  "detail_level": "medium",
+  "include_private_methods": false,
+  "focus_on_public_api": true
+}
+```
+</Step>
+
+<Step title="Diagram Types">
+Specify which types of diagrams to generate:
+
+- **Architecture diagrams**: System components and relationships
+- **Data flow diagrams**: Information processing flow
+- **Database diagrams**: Schema and relationships
+- **API diagrams**: Endpoint structure and data flow
+- **Process diagrams**: Workflow and business logic
+
+```javascript
+{
+  "diagram_types": [
+    "architecture",
+    "data_flow", 
+    "api_structure"
+  ]
+}
+```
+</Step>
+</Steps>
+
+### Output Format Options
+
+<Tabs>
+<Tab title="Standard Wiki">
+**Format:** Hierarchical pages with cross-references
+
+**Best for:**
+- General documentation browsing  
+- Team onboarding
+- Project understanding
+- Code exploration
+
+**Features:**
+- Navigation tree
+- Search functionality
+- Cross-page linking
+- Embedded diagrams
+</Tab>
+
+<Tab title="API Documentation">
+**Format:** OpenAPI-style documentation
+
+**Best for:**
+- REST API projects
+- GraphQL APIs
+- Library documentation
+- Integration guides
+
+**Features:**
+- Endpoint documentation
+- Request/response examples
+- Authentication details
+- Error code explanations
+</Tab>
+
+<Tab title="Architecture Guide">
+**Format:** System design documentation
+
+**Best for:**
+- Complex applications
+- Microservice architectures
+- Infrastructure projects
+- Technical decision records
+
+**Features:**
+- System diagrams
+- Component interactions
+- Data flow analysis
+- Technology stack overview
+</Tab>
+</Tabs>
+
+## Quality Optimization
+
+### Improving Documentation Quality
+
+<AccordionGroup>
+<Accordion title="Repository Preparation">
+**Before generation, optimize your repository:**
+
+1. **Update README.md** with current project information
+2. **Add code comments** for complex logic
+3. **Update package.json/requirements.txt** with current dependencies
+4. **Add configuration examples** (.env.example, config samples)
+5. **Include API documentation** (OpenAPI specs, GraphQL schemas)
+
+**Impact:** 40-60% improvement in documentation accuracy and completeness
+</Accordion>
+
+<Accordion title="Model Selection Strategy">
+**Match models to repository characteristics:**
+
+- **Simple projects**: Use Gemini Flash for speed
+- **Complex architectures**: Use GPT-4o for depth
+- **API-heavy projects**: Use Claude 3.5 Sonnet via OpenRouter
+- **Data projects**: Use models with strong analytical capabilities
+
+**A/B Testing approach:**
+1. Generate with fast model first (Gemini Flash)
+2. If quality insufficient, regenerate with premium model (GPT-4o)
+3. Compare results and choose best approach for similar projects
+</Accordion>
+
+<Accordion title="Iterative Improvement">
+**Use the Ask feature to improve documentation:**
+
+1. Generate initial wiki
+2. Ask specific questions about unclear sections
+3. Use Deep Research for complex topics
+4. Incorporate answers into understanding
+5. Regenerate sections with better context
+
+**Example workflow:**
+```
+1. Generate wiki → Review architecture section
+2. Ask: "Explain the database connection pooling implementation"
+3. Get detailed answer → Understand missing context  
+4. Regenerate with better understanding
+```
+</Accordion>
+</AccordionGroup>
+
+### Troubleshooting Generation Issues
+
+<AccordionGroup>
+<Accordion title="Incomplete Generation">
+**Symptoms:**
+- Missing pages or sections
+- Truncated content
+- Error messages during generation
+
+**Solutions:**
+1. **Check API limits**: Verify your AI provider has sufficient quota
+2. **Reduce scope**: Start with smaller directories or file sets
+3. **Try different model**: Some models handle large contexts better
+4. **Check logs**: Look for specific error messages in API logs
+
+```bash
+# Check generation logs
+tail -f ./api/logs/application.log
+
+# Look for specific errors like:
+# - "Token limit exceeded"
+# - "Repository access denied"  
+# - "Model timeout"
+```
+</Accordion>
+
+<Accordion title="Poor Quality Results">
+**Symptoms:**
+- Generic or inaccurate descriptions
+- Missing technical details
+- Incorrect architecture analysis
+
+**Solutions:**
+1. **Improve repository documentation**: Add README, comments, examples
+2. **Use higher-quality models**: Switch from Flash to GPT-4o
+3. **Enable Deep Research**: For complex analysis tasks
+4. **Provide more context**: Add configuration files, API specs
+
+**Before/After example:**
+```
+Before: "This is a web application built with JavaScript"
+After: "Express.js REST API with MongoDB integration, featuring JWT authentication, rate limiting, and comprehensive error handling middleware"
+```
+</Accordion>
+
+<Accordion title="Generation Timeout">
+**Symptoms:**
+- Process hangs or takes extremely long
+- Browser timeout errors
+- Partial results only
+
+**Solutions:**
+1. **Break into smaller chunks**: Process subdirectories separately
+2. **Use faster models**: Gemini Flash series for speed
+3. **Increase timeout limits**: In API configuration
+4. **Optimize repository**: Remove large binary files, generated code
+
+```javascript
+// Increase timeout in API calls
+{
+  "timeout": 600000,  // 10 minutes
+  "chunk_size": "small",
+  "skip_large_files": true
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Advanced Features
+
+### Multi-Language Support
+
+DeepWiki automatically detects and optimizes for repository languages:
+
+<Tabs>
+<Tab title="Polyglot Repositories">
+**Automatic detection of:**
+- Primary language (most files)
+- Secondary languages 
+- Framework combinations
+- Build system integration
+
+**Smart documentation:**
+- Language-specific setup instructions
+- Cross-language integration points
+- Build pipeline explanation
+- Dependency management per language
+</Tab>
+
+<Tab title="Internationalization">
+**Generated documentation adapts to:**
+- Code comment language
+- README language detection  
+- Variable naming conventions
+- Documentation style preferences
+
+**Supported languages:**
+- English (default)
+- Chinese (Simplified/Traditional)
+- Japanese
+- Spanish
+- Korean
+- And more via AI model capabilities
+</Tab>
+</Tabs>
+
+### Integration Workflows
+
+<Steps>
+<Step title="CI/CD Integration">
+Automate wiki generation in your development pipeline:
+
+```yaml
+# GitHub Actions example
+name: Generate Documentation
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate Wiki
+        run: |
+          curl -X POST "${{ secrets.DEEPWIKI_URL }}/wiki/generate" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo_url": "${{ github.server_url }}/${{ github.repository }}",
+              "model_provider": "google",
+              "force_regenerate": true
+            }'
+```
+</Step>
+
+<Step title="Webhook Integration">
+Automatically update documentation on repository changes:
+
+```javascript
+// Webhook handler example
+app.post('/webhook/repository', (req, res) => {
+  const { repository, commits } = req.body;
+  
+  // Check if significant changes occurred
+  const significantFiles = commits.some(commit => 
+    commit.modified.some(file => 
+      file.includes('src/') || 
+      file.includes('README') ||
+      file.includes('package.json')
+    )
+  );
+  
+  if (significantFiles) {
+    // Trigger documentation regeneration
+    generateWiki({
+      repo_url: repository.html_url,
+      force_regenerate: true
+    });
+  }
+});
+```
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Ask Feature Guide" icon="comments" href="/guides/ask-feature">
+  Learn to use the interactive Q&A system with your generated wikis
+</Card>
+
+<Card title="Deep Research" icon="magnifying-glass" href="/guides/deep-research">
+  Conduct multi-turn AI research for complex code analysis
+</Card>
+
+<Card title="Mermaid Diagrams" icon="diagram-project" href="/guides/mermaid-diagrams">
+  Understand and customize the generated visual diagrams
+</Card>
+
+<Card title="Production Setup" icon="cloud" href="/guides/production-setup">
+  Deploy DeepWiki for team and enterprise use
+</Card>
+</CardGroup>

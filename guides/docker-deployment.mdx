@@ -1,0 +1,1449 @@
+# Docker Deployment Guide
+
+This comprehensive guide covers everything you need to know about deploying DeepWikiOpen using Docker, from basic setups to production-grade deployments.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Quick Start with Pre-built Images](#quick-start-with-pre-built-images)
+- [Building Custom Images](#building-custom-images)
+- [Docker Compose Setup](#docker-compose-setup)
+- [Environment Configuration](#environment-configuration)
+- [Volume Mounts and Data Persistence](#volume-mounts-and-data-persistence)
+- [Container Networking](#container-networking)
+- [Health Checks and Monitoring](#health-checks-and-monitoring)
+- [Scaling Strategies](#scaling-strategies)
+- [Security Considerations](#security-considerations)
+- [Troubleshooting](#troubleshooting)
+- [Production Deployments](#production-deployments)
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Docker** (version 20.10+)
+- **Docker Compose** (version 2.0+)
+- **Git** (for cloning repositories)
+
+### Installation Verification
+
+```bash
+# Check Docker version
+docker --version
+docker-compose --version
+
+# Verify Docker is running
+docker info
+```
+
+## Quick Start with Pre-built Images
+
+### Using GitHub Container Registry
+
+DeepWikiOpen provides pre-built images through GitHub Container Registry (GHCR). This is the fastest way to get started.
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/your-org/deepwikiopen:latest
+
+# Run a simple container
+docker run -d \
+  --name deepwikiopen \
+  -p 3000:3000 \
+  -e NODE_ENV=production \
+  ghcr.io/your-org/deepwikiopen:latest
+```
+
+### Available Image Tags
+
+| Tag | Description | Use Case |
+|-----|-------------|----------|
+| `latest` | Latest stable release | Production |
+| `develop` | Development branch | Testing |
+| `v1.2.3` | Specific version | Production pinning |
+| `slim` | Minimal image size | Resource-constrained environments |
+
+### Basic Docker Run Command
+
+```bash
+docker run -d \
+  --name deepwikiopen-app \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/db" \
+  -e JWT_SECRET="your-secret-key" \
+  -e REDIS_URL="redis://redis:6379" \
+  -v deepwikiopen-data:/app/data \
+  ghcr.io/your-org/deepwikiopen:latest
+```
+
+## Building Custom Images
+
+### Dockerfile Explanation
+
+Here's a production-ready Dockerfile with explanations:
+
+```dockerfile
+# Use Node.js LTS Alpine for smaller image size
+FROM node:18-alpine AS base
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    musl-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY yarn.lock ./
+
+# Install dependencies
+FROM base AS dependencies
+RUN npm ci --only=production --frozen-lockfile
+
+# Development dependencies for building
+FROM base AS dev-dependencies
+RUN npm ci --frozen-lockfile
+
+# Build stage
+FROM dev-dependencies AS build
+COPY . .
+RUN npm run build
+RUN npm run test:unit
+
+# Production stage
+FROM base AS production
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Copy production dependencies
+COPY --from=dependencies /app/node_modules ./node_modules
+
+# Copy built application
+COPY --from=build --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+COPY --from=build --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Create data directory
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start the application
+CMD ["npm", "start"]
+```
+
+### Building the Image
+
+```bash
+# Build with default tag
+docker build -t deepwikiopen:local .
+
+# Build with specific tag and build args
+docker build \
+  --build-arg NODE_ENV=production \
+  --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+  -t deepwikiopen:v1.0.0 .
+
+# Multi-platform build
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t deepwikiopen:multi-arch \
+  --push .
+```
+
+### Optimized Development Dockerfile
+
+```dockerfile
+FROM node:18-alpine AS development
+
+# Install development tools
+RUN apk add --no-cache \
+    git \
+    curl \
+    vim
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose port and start dev server
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+```
+
+## Docker Compose Setup
+
+### Complete Production Setup
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # Main application
+  app:
+    image: ghcr.io/your-org/deepwikiopen:latest
+    container_name: deepwikiopen-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - deepwikiopen-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: deepwikiopen-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    networks:
+      - deepwikiopen-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    container_name: deepwikiopen-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - deepwikiopen-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Elasticsearch for search
+  elasticsearch:
+    image: elasticsearch:8.8.0
+    container_name: deepwikiopen-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    networks:
+      - deepwikiopen-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: deepwikiopen-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./docker/ssl:/etc/nginx/ssl
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - deepwikiopen-network
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: deepwikiopen-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    networks:
+      - deepwikiopen-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: deepwikiopen-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - deepwikiopen-network
+
+volumes:
+  app-data:
+    driver: local
+  app-logs:
+    driver: local
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  elasticsearch-data:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  deepwikiopen-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+```
+
+### Development Compose Setup
+
+```yaml
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: deepwikiopen-dev
+    ports:
+      - "3000:3000"
+      - "9229:9229" # Node.js debugger
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/deepwikiopen_dev
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - dev-logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - dev-network
+    command: npm run dev
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: deepwikiopen-postgres-dev
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=deepwikiopen_dev
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - dev-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: deepwikiopen-redis-dev
+    ports:
+      - "6379:6379"
+    networks:
+      - dev-network
+
+volumes:
+  postgres-dev-data:
+  dev-logs:
+
+networks:
+  dev-network:
+    driver: bridge
+```
+
+## Environment Configuration
+
+### Environment Variables Structure
+
+Create a comprehensive `.env` file:
+
+```bash
+# .env
+# Application Settings
+NODE_ENV=production
+PORT=3000
+APP_URL=https://your-domain.com
+APP_NAME="DeepWikiOpen"
+
+# Database Configuration
+DATABASE_URL=postgresql://username:password@postgres:5432/deepwikiopen
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=deepwikiopen
+DB_USER=username
+DB_PASSWORD=secure_password
+
+# Redis Configuration
+REDIS_URL=redis://redis:6379
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=redis_password
+
+# Authentication
+JWT_SECRET=your-super-secret-jwt-key-change-this
+NEXTAUTH_URL=https://your-domain.com
+NEXTAUTH_SECRET=another-super-secret-key
+
+# OAuth Providers
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Email Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+
+# Storage Configuration
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-s3-bucket
+
+# Monitoring
+SENTRY_DSN=https://your-sentry-dsn
+NEW_RELIC_LICENSE_KEY=your-new-relic-key
+
+# Security
+CORS_ORIGIN=https://your-domain.com
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=900000
+
+# Feature Flags
+ENABLE_SEARCH=true
+ENABLE_ANALYTICS=true
+ENABLE_NOTIFICATIONS=true
+```
+
+### Environment Files for Different Stages
+
+```bash
+# .env.local (development)
+NODE_ENV=development
+DATABASE_URL=postgresql://postgres:password@localhost:5432/deepwikiopen_dev
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=dev-secret
+
+# .env.staging
+NODE_ENV=staging
+DATABASE_URL=postgresql://user:pass@staging-db:5432/deepwikiopen_staging
+REDIS_URL=redis://staging-redis:6379
+
+# .env.production
+NODE_ENV=production
+DATABASE_URL=postgresql://user:pass@prod-db:5432/deepwikiopen
+REDIS_URL=redis://prod-redis:6379
+```
+
+### Docker Compose Environment Override
+
+```yaml
+# docker-compose.override.yml
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    volumes:
+      - ./logs:/app/logs
+```
+
+## Volume Mounts and Data Persistence
+
+### Volume Types and Use Cases
+
+```yaml
+# Named volumes (recommended for production)
+volumes:
+  # Database data persistence
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/postgres
+
+  # Application data
+  app-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/data
+
+  # Logs
+  app-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/logs
+
+  # Backups
+  backup-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/backups
+```
+
+### Bind Mounts for Development
+
+```yaml
+services:
+  app:
+    volumes:
+      # Source code (development)
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./package.json:/app/package.json
+      
+      # Configuration files
+      - ./config:/app/config
+      - ./docker/app/entrypoint.sh:/app/entrypoint.sh
+      
+      # Exclude node_modules
+      - /app/node_modules
+```
+
+### NFS Volumes for Multi-Host Setup
+
+```yaml
+volumes:
+  shared-data:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=nfs.example.com,rw
+      device: ":/path/to/shared/data"
+```
+
+### Volume Backup Strategy
+
+```bash
+# Backup script
+#!/bin/bash
+
+# Create backup directory
+mkdir -p /backups/$(date +%Y%m%d)
+
+# Backup PostgreSQL
+docker exec deepwikiopen-postgres pg_dump -U postgres deepwikiopen > \
+  /backups/$(date +%Y%m%d)/postgres-backup.sql
+
+# Backup volumes
+docker run --rm \
+  -v deepwikiopen_postgres-data:/source \
+  -v /backups/$(date +%Y%m%d):/backup \
+  alpine tar czf /backup/postgres-data.tar.gz -C /source .
+
+docker run --rm \
+  -v deepwikiopen_app-data:/source \
+  -v /backups/$(date +%Y%m%d):/backup \
+  alpine tar czf /backup/app-data.tar.gz -C /source .
+```
+
+## Container Networking
+
+### Custom Bridge Network
+
+```yaml
+networks:
+  deepwikiopen-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+```
+
+### Service Discovery
+
+```yaml
+services:
+  app:
+    networks:
+      deepwikiopen-network:
+        aliases:
+          - webapp
+          - api
+    
+  postgres:
+    networks:
+      deepwikiopen-network:
+        aliases:
+          - database
+          - db
+```
+
+### Port Configuration
+
+```yaml
+services:
+  # Internal communication only
+  app-internal:
+    expose:
+      - "3000"
+    networks:
+      - internal
+
+  # External access
+  app-external:
+    ports:
+      - "80:3000"      # HTTP
+      - "443:3000"     # HTTPS
+      - "3000:3000"    # Direct access
+    networks:
+      - external
+
+networks:
+  internal:
+    driver: bridge
+    internal: true
+  external:
+    driver: bridge
+```
+
+### Network Security
+
+```yaml
+# docker-compose.security.yml
+version: '3.8'
+
+services:
+  app:
+    networks:
+      - frontend
+      - backend
+
+  postgres:
+    networks:
+      - backend
+    # No external ports exposed
+
+  redis:
+    networks:
+      - backend
+    # No external ports exposed
+
+  nginx:
+    networks:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+```
+
+## Health Checks and Monitoring
+
+### Application Health Checks
+
+```dockerfile
+# Dockerfile health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+```
+
+```yaml
+# Docker Compose health checks
+services:
+  app:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+```
+
+### Custom Health Check Endpoint
+
+```javascript
+// pages/api/health.js
+export default function handler(req, res) {
+  const checks = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: 'checking...',
+      redis: 'checking...',
+      memory: process.memoryUsage(),
+      uptime: process.uptime()
+    }
+  };
+
+  // Check database connection
+  try {
+    // Your database check logic
+    checks.checks.database = 'healthy';
+  } catch (error) {
+    checks.checks.database = 'unhealthy';
+    checks.status = 'error';
+  }
+
+  // Check Redis connection
+  try {
+    // Your Redis check logic
+    checks.checks.redis = 'healthy';
+  } catch (error) {
+    checks.checks.redis = 'unhealthy';
+    checks.status = 'error';
+  }
+
+  const statusCode = checks.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(checks);
+}
+```
+
+### Monitoring with Docker Stats
+
+```bash
+# Monitor container resources
+docker stats deepwikiopen-app
+
+# Get detailed container information
+docker inspect deepwikiopen-app
+
+# View container logs
+docker logs -f deepwikiopen-app
+
+# Execute commands in running container
+docker exec -it deepwikiopen-app sh
+```
+
+### Prometheus Metrics
+
+```yaml
+# docker/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'deepwikiopen'
+    static_configs:
+      - targets: ['app:3000']
+    metrics_path: '/api/metrics'
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+```
+
+## Scaling Strategies
+
+### Docker Compose Scale
+
+```bash
+# Scale application horizontally
+docker-compose up -d --scale app=3
+
+# Scale with load balancer
+docker-compose -f docker-compose.yml -f docker-compose.scale.yml up -d
+```
+
+```yaml
+# docker-compose.scale.yml
+version: '3.8'
+
+services:
+  app:
+    deploy:
+      replicas: 3
+    
+  nginx:
+    depends_on:
+      - app
+    volumes:
+      - ./docker/nginx/nginx-scale.conf:/etc/nginx/nginx.conf
+```
+
+### Load Balancer Configuration
+
+```nginx
+# docker/nginx/nginx-scale.conf
+upstream app_servers {
+    server app_1:3000;
+    server app_2:3000;
+    server app_3:3000;
+}
+
+server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        proxy_pass http://app_servers;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Docker Swarm Setup
+
+```bash
+# Initialize Docker Swarm
+docker swarm init
+
+# Deploy stack
+docker stack deploy -c docker-compose.swarm.yml deepwikiopen
+
+# Scale services
+docker service scale deepwikiopen_app=5
+```
+
+```yaml
+# docker-compose.swarm.yml
+version: '3.8'
+
+services:
+  app:
+    image: ghcr.io/your-org/deepwikiopen:latest
+    deploy:
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+
+  postgres:
+    image: postgres:15-alpine
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+networks:
+  deepwikiopen-network:
+    driver: overlay
+    attachable: true
+```
+
+### Auto-scaling with Docker Swarm
+
+```bash
+# Create auto-scaling service
+docker service create \
+  --name deepwikiopen-app \
+  --replicas 2 \
+  --limit-cpu 0.5 \
+  --limit-memory 512m \
+  --reserve-cpu 0.25 \
+  --reserve-memory 256m \
+  --update-parallelism 1 \
+  --update-delay 10s \
+  ghcr.io/your-org/deepwikiopen:latest
+```
+
+## Security Considerations
+
+### Container Security Best Practices
+
+```dockerfile
+# Use non-root user
+FROM node:18-alpine
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# Set proper file permissions
+COPY --chown=nextjs:nodejs . .
+USER nextjs
+
+# Use read-only root filesystem
+docker run --read-only --tmpfs /tmp deepwikiopen:latest
+
+# Drop capabilities
+docker run --cap-drop=ALL --cap-add=NET_BIND_SERVICE deepwikiopen:latest
+
+# Set security options
+docker run --security-opt=no-new-privileges:true deepwikiopen:latest
+```
+
+### Secrets Management
+
+```yaml
+# docker-compose.secrets.yml
+version: '3.8'
+
+services:
+  app:
+    secrets:
+      - db_password
+      - jwt_secret
+    environment:
+      - DATABASE_PASSWORD_FILE=/run/secrets/db_password
+      - JWT_SECRET_FILE=/run/secrets/jwt_secret
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+```
+
+### Network Security
+
+```yaml
+services:
+  app:
+    networks:
+      - frontend
+    # Only expose necessary ports
+    expose:
+      - "3000"
+
+  postgres:
+    networks:
+      - backend
+    # No external ports
+    # Use internal network only
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true  # No external access
+```
+
+### Security Scanning
+
+```bash
+# Scan images for vulnerabilities
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /tmp:/tmp anchore/grype:latest \
+  ghcr.io/your-org/deepwikiopen:latest
+
+# Use Trivy for comprehensive scanning
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy image ghcr.io/your-org/deepwikiopen:latest
+```
+
+### Resource Limits
+
+```yaml
+services:
+  app:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+          pids: 100
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+```
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Container Won't Start
+
+```bash
+# Check container logs
+docker logs deepwikiopen-app
+
+# Check container configuration
+docker inspect deepwikiopen-app
+
+# Debug with shell access
+docker run -it --entrypoint /bin/sh ghcr.io/your-org/deepwikiopen:latest
+```
+
+#### Database Connection Issues
+
+```bash
+# Test database connection
+docker exec deepwikiopen-app nc -zv postgres 5432
+
+# Check PostgreSQL logs
+docker logs deepwikiopen-postgres
+
+# Test with psql
+docker exec -it deepwikiopen-postgres psql -U postgres -d deepwikiopen
+```
+
+#### Memory Issues
+
+```bash
+# Monitor memory usage
+docker stats deepwikiopen-app
+
+# Check for memory leaks
+docker exec deepwikiopen-app cat /proc/meminfo
+
+# Increase memory limits
+docker run -m 1g deepwikiopen:latest
+```
+
+#### Permission Issues
+
+```bash
+# Check file permissions
+docker exec deepwikiopen-app ls -la /app
+
+# Fix ownership
+docker exec deepwikiopen-app chown -R nextjs:nodejs /app/data
+
+# Run as different user
+docker run --user 1001:1001 deepwikiopen:latest
+```
+
+### Debugging Tools
+
+```bash
+# Enter running container
+docker exec -it deepwikiopen-app sh
+
+# Copy files from container
+docker cp deepwikiopen-app:/app/logs ./local-logs
+
+# Run health checks manually
+docker exec deepwikiopen-app curl -f http://localhost:3000/api/health
+
+# Check network connectivity
+docker exec deepwikiopen-app nslookup postgres
+docker exec deepwikiopen-app ping redis
+```
+
+### Performance Debugging
+
+```bash
+# Monitor container performance
+docker stats --no-stream deepwikiopen-app
+
+# Profile application
+docker exec deepwikiopen-app node --prof app.js
+
+# Check disk usage
+docker exec deepwikiopen-app df -h
+docker system df
+```
+
+## Production Deployments
+
+### Production-Ready Compose File
+
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+
+x-common-variables: &common-variables
+  POSTGRES_DB: ${POSTGRES_DB:-deepwikiopen}
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+services:
+  app:
+    image: ghcr.io/your-org/deepwikiopen:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      <<: *common-variables
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - app-data:/app/data:rw
+      - app-logs:/app/logs:rw
+    networks:
+      - app-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      <<: *common-variables
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data:rw
+      - postgres-backups:/backups:rw
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data:rw
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx:rw
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+volumes:
+  app-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/data
+  app-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/logs
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/postgres
+  postgres-backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/deepwikiopen/backups
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+```
+
+### Deployment Scripts
+
+```bash
+#!/bin/bash
+# deploy.sh
+
+set -e
+
+echo "🚀 Starting production deployment..."
+
+# Load environment variables
+source .env.production
+
+# Pull latest images
+echo "📥 Pulling latest images..."
+docker-compose -f docker-compose.prod.yml pull
+
+# Create backup before deployment
+echo "💾 Creating backup..."
+./scripts/backup.sh
+
+# Stop services gracefully
+echo "🛑 Stopping services..."
+docker-compose -f docker-compose.prod.yml down --remove-orphans
+
+# Start services
+echo "▶️ Starting services..."
+docker-compose -f docker-compose.prod.yml up -d
+
+# Wait for health checks
+echo "⏳ Waiting for services to be healthy..."
+timeout 300 docker-compose -f docker-compose.prod.yml exec app \
+  bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:3000/api/health)" != "200" ]]; do sleep 5; done'
+
+# Run database migrations
+echo "🔄 Running database migrations..."
+docker-compose -f docker-compose.prod.yml exec app npm run migrate
+
+# Clean up old images
+echo "🧹 Cleaning up..."
+docker image prune -f
+
+echo "✅ Deployment completed successfully!"
+```
+
+### Zero-Downtime Deployment
+
+```bash
+#!/bin/bash
+# zero-downtime-deploy.sh
+
+set -e
+
+# Blue-green deployment script
+CURRENT_COLOR=$(docker-compose -f docker-compose.prod.yml ps -q app | head -1)
+NEW_COLOR=$([ "$CURRENT_COLOR" == "blue" ] && echo "green" || echo "blue")
+
+echo "🔄 Starting zero-downtime deployment (switching to $NEW_COLOR)..."
+
+# Start new version alongside current
+docker-compose -f docker-compose.$NEW_COLOR.yml up -d
+
+# Health check new version
+echo "⏳ Waiting for new version to be ready..."
+timeout 300 bash -c "until curl -f http://localhost:3001/api/health; do sleep 5; done"
+
+# Switch traffic
+echo "🔀 Switching traffic..."
+./scripts/switch-traffic.sh $NEW_COLOR
+
+# Stop old version
+echo "🛑 Stopping old version..."
+docker-compose -f docker-compose.$CURRENT_COLOR.yml down
+
+echo "✅ Zero-downtime deployment completed!"
+```
+
+### Monitoring and Alerting
+
+```yaml
+# monitoring/docker-compose.monitoring.yml
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3001:3000"
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+
+volumes:
+  prometheus-data:
+  grafana-data:
+```
+
+### SSL/TLS Configuration
+
+```nginx
+# nginx/nginx.conf
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com;
+
+    ssl_certificate /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+
+    location / {
+        proxy_pass http://app:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+This comprehensive Docker deployment guide covers everything from basic setups to production-grade deployments. Use the appropriate sections based on your deployment needs and gradually implement more advanced features as your application grows.
+
+Remember to:
+- Always test deployments in a staging environment first
+- Keep your images updated with security patches
+- Monitor resource usage and adjust limits accordingly
+- Implement proper backup and disaster recovery procedures
+- Use secrets management for sensitive data
+- Regular security audits of your containers and configurations

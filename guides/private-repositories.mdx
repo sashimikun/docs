@@ -1,0 +1,1376 @@
+---
+title: "Private Repository Access"
+description: "Complete guide to accessing private repositories on GitHub, GitLab, and BitBucket with personal access tokens, security best practices, and troubleshooting"
+---
+
+DeepWiki-Open can access private repositories across multiple platforms using personal access tokens. This comprehensive guide covers token creation, management, security best practices, and troubleshooting for GitHub, GitLab, and BitBucket.
+
+## Overview
+
+Private repository access requires authentication tokens that prove your authorization to access the repository content. DeepWiki supports multiple platforms and token types with different permission models.
+
+<CardGroup cols={2}>
+<Card title="GitHub" icon="github">
+  Classic and fine-grained personal access tokens with repository scope
+</Card>
+
+<Card title="GitLab" icon="gitlab">
+  Personal access tokens with read_repository scope
+</Card>
+
+<Card title="BitBucket" icon="bitbucket">
+  App passwords with repository read permissions
+</Card>
+
+<Card title="Enterprise" icon="building">
+  Organization and enterprise-specific considerations
+</Card>
+</CardGroup>
+
+## GitHub Access Tokens
+
+GitHub offers two types of personal access tokens with different scopes and capabilities.
+
+### Classic Personal Access Tokens
+
+<Steps>
+<Step title="Navigate to Token Settings">
+1. Go to GitHub.com and sign in
+2. Click your profile picture → **Settings**
+3. In the left sidebar, click **Developer settings**
+4. Click **Personal access tokens** → **Tokens (classic)**
+
+<Info>
+Classic tokens provide broad access but are easier to set up for multiple repositories.
+</Info>
+</Step>
+
+<Step title="Generate New Token">
+1. Click **Generate new token** → **Generate new token (classic)**
+2. Enter a descriptive note (e.g., "DeepWiki Documentation Access")
+3. Set expiration (recommended: 90 days for security)
+4. Select scopes based on your needs:
+
+<AccordionGroup>
+<Accordion title="Private Repository Access">
+**Required scope:** `repo`
+- Full control of private repositories
+- Includes read/write access to code, issues, pull requests
+- **Use when:** Accessing private repositories you own or have been granted access to
+</Accordion>
+
+<Accordion title="Public Repository Only">
+**Required scope:** `public_repo`
+- Access to public repositories only
+- More limited permissions
+- **Use when:** Only accessing public repositories (DeepWiki works without tokens for public repos)
+</Accordion>
+
+<Accordion title="Organization Repositories">
+**Additional scope:** `read:org`
+- Read organization membership
+- Required for some organization private repositories
+- **Use when:** Accessing private repositories owned by organizations
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Copy and Store Token">
+1. Click **Generate token**
+2. **Important:** Copy the token immediately - you won't see it again
+3. Store securely (see security best practices below)
+
+<Warning>
+GitHub classic tokens start with `ghp_` and are 40 characters long. Never share or commit tokens to code repositories.
+</Warning>
+</Step>
+</Steps>
+
+### Fine-Grained Personal Access Tokens (Beta)
+
+For more granular control over repository access:
+
+<Steps>
+<Step title="Create Fine-Grained Token">
+1. In **Developer settings** → **Personal access tokens**
+2. Click **Fine-grained tokens** → **Generate new token**
+3. Configure token details:
+   - **Token name:** Descriptive name
+   - **Expiration:** 90 days recommended
+   - **Resource owner:** Select your account or organization
+</Step>
+
+<Step title="Select Repository Access">
+Choose repository access level:
+
+<Tabs>
+<Tab title="Selected repositories">
+**Best for:** Specific repositories
+- Click "Selected repositories"
+- Choose specific repositories from dropdown
+- More secure, limited scope
+
+**Permissions needed:**
+- **Repository permissions:** Contents (Read)
+- **Metadata:** Read
+</Tab>
+
+<Tab title="All repositories">
+**Best for:** Multiple repositories
+- Select "All repositories" under resource owner
+- Grants access to all current and future repositories
+- Less secure but more convenient
+
+**Permissions needed:**
+- **Repository permissions:** Contents (Read)
+- **Metadata:** Read
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Configure Permissions">
+Set minimum required permissions:
+
+```json
+{
+  "Contents": "Read",
+  "Metadata": "Read", 
+  "Pull requests": "Read",
+  "Issues": "Read"
+}
+```
+
+<Check>
+Fine-grained tokens provide better security through specific repository and permission selection.
+</Check>
+</Step>
+</Steps>
+
+### GitHub Enterprise
+
+For GitHub Enterprise Server instances:
+
+<AccordionGroup>
+<Accordion title="Enterprise Server Setup">
+**Token creation process:**
+1. Navigate to your GitHub Enterprise instance
+2. Follow same steps as GitHub.com
+3. Ensure your DeepWiki instance can reach enterprise server
+
+**Additional considerations:**
+- Network connectivity requirements
+- Certificate trust for self-signed certificates
+- Custom API endpoints configuration
+
+```javascript
+{
+  "repo_url": "https://github.enterprise.com/company/private-repo",
+  "access_token": "ghp_xxxxxxxxxxxxxxxxxxxx",
+  "enterprise_base_url": "https://github.enterprise.com"
+}
+```
+</Accordion>
+
+<Accordion title="SAML and SSO">
+**With SAML SSO enabled:**
+1. Create personal access token normally
+2. Authorize token for SSO:
+   - Go to token settings
+   - Click "Configure SSO" next to your organization
+   - Click "Authorize"
+
+**Enterprise considerations:**
+- Organization policies may restrict token creation
+- Admin approval may be required
+- Token expiration policies may be enforced
+</Accordion>
+</AccordionGroup>
+
+## GitLab Access Tokens
+
+GitLab uses personal access tokens with specific scope-based permissions.
+
+### Personal Access Token Creation
+
+<Steps>
+<Step title="Access Token Settings">
+1. Sign in to GitLab.com or your GitLab instance
+2. Click your avatar → **Edit profile**
+3. In the left sidebar, click **Access Tokens**
+
+<Info>
+GitLab tokens are more granular than GitHub classic tokens, allowing precise permission control.
+</Info>
+</Step>
+
+<Step title="Create New Token">
+1. Click **Add new token**
+2. Configure token settings:
+   - **Token name:** Descriptive name (e.g., "DeepWiki Access")
+   - **Expiration date:** Set appropriate expiration
+   - **Select scopes:** Choose required permissions
+
+<AccordionGroup>
+<Accordion title="Repository Access Scopes">
+**For private repository access:**
+- ✅ `read_repository` - Clone and pull from repositories
+- ⚠️ `read_user` - Read user information (optional)
+- ⚠️ `read_api` - Read API access (if using API features)
+
+**Avoid unnecessary scopes:**
+- ❌ `write_repository` - Not needed for documentation
+- ❌ `api` - Full API access (too broad)
+</Accordion>
+
+<Accordion title="Group and Project Access">
+**For group projects:**
+- Add `read_repository` scope
+- Ensure you're a group member
+- Check group access policies
+
+**For specific projects:**
+- Token automatically inherits project access
+- No additional configuration needed
+- Respects project visibility settings
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Generate and Store">
+1. Click **Create personal access token**
+2. Copy the generated token immediately
+3. Store securely with appropriate labels
+
+<Warning>
+GitLab tokens start with `glpat-` followed by 20 characters. They cannot be viewed again after creation.
+</Warning>
+</Step>
+</Steps>
+
+### GitLab Self-Managed
+
+For self-hosted GitLab instances:
+
+<Tabs>
+<Tab title="Standard Instance">
+**Configuration requirements:**
+- Same token creation process
+- Verify network connectivity to your GitLab instance
+- Check SSL certificate configuration
+
+```javascript
+{
+  "repo_url": "https://gitlab.company.com/team/private-project",
+  "access_token": "glpat-xxxxxxxxxxxxxxxxxxxx",
+  "gitlab_base_url": "https://gitlab.company.com"
+}
+```
+</Tab>
+
+<Tab title="Admin Considerations">
+**Instance-level settings:**
+- Personal access token policies
+- Maximum token lifetime
+- Required scopes restrictions
+- API rate limiting
+
+**Security policies:**
+- LDAP/SAML integration impacts
+- IP allowlists for API access
+- Audit logging for token usage
+</Tab>
+</Tabs>
+
+## BitBucket Access
+
+BitBucket uses app passwords instead of traditional tokens, with different permission models.
+
+### App Password Creation
+
+<Steps>
+<Step title="Access App Password Settings">
+1. Sign in to BitBucket.org
+2. Click your avatar → **Personal BitBucket settings**
+3. In the left menu, click **App passwords**
+
+<Info>
+BitBucket app passwords are repository-specific credentials with granular permissions.
+</Info>
+</Step>
+
+<Step title="Create App Password">
+1. Click **Create app password**
+2. Configure password settings:
+   - **Label:** Descriptive name (e.g., "DeepWiki Documentation")
+   - **Permissions:** Select required access levels
+
+<AccordionGroup>
+<Accordion title="Repository Permissions">
+**Required permissions:**
+- ✅ **Repositories: Read** - Access repository content
+- ✅ **Pull requests: Read** - Access PR information (optional)
+- ⚠️ **Issues: Read** - Access issues (optional)
+
+**Avoid unnecessary permissions:**
+- ❌ **Repositories: Write** - Not needed for documentation
+- ❌ **Repositories: Admin** - Administrative access
+- ❌ **Account** - Account-level access
+</Accordion>
+
+<Accordion title="Access Scope">
+**Team repositories:**
+- Ensure you have repository access
+- App password inherits team permissions
+- Verify with team administrators
+
+**Personal repositories:**
+- Full access to your own repositories
+- No additional configuration needed
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Generate Password">
+1. Click **Create**
+2. Copy the generated app password
+3. Store with username for authentication
+
+<Warning>
+BitBucket app passwords are unique strings (not prefixed). You'll need both your username and app password for authentication.
+</Warning>
+</Step>
+</Steps>
+
+### BitBucket Server/Data Center
+
+For on-premises BitBucket instances:
+
+<Tabs>
+<Tab title="Personal Access Tokens">
+**BitBucket Server uses personal access tokens:**
+1. Go to your BitBucket Server instance
+2. Click your avatar → **Manage account**
+3. Click **Personal access tokens**
+4. Create token with **Repository read** permission
+
+```javascript
+{
+  "repo_url": "https://bitbucket.company.com/projects/TEAM/repos/private-repo",
+  "access_token": "your-personal-access-token",
+  "bitbucket_base_url": "https://bitbucket.company.com"
+}
+```
+</Tab>
+
+<Tab title="HTTP Basic Authentication">
+**Alternative authentication method:**
+- Use username and app password
+- Base64 encode credentials
+- Less secure than tokens
+
+```javascript
+{
+  "repo_url": "https://bitbucket.company.com/projects/TEAM/repos/private-repo",
+  "username": "your-username",
+  "password": "your-app-password"
+}
+```
+</Tab>
+</Tabs>
+
+## Token Security Best Practices
+
+### Secure Token Storage
+
+<AccordionGroup>
+<Accordion title="Development Environment">
+**Local development:**
+```bash
+# Use environment files with restricted permissions
+echo "GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx" > .env.local
+chmod 600 .env.local
+
+# Add to gitignore
+echo ".env*" >> .gitignore
+echo "*.token" >> .gitignore
+```
+
+**Configuration management:**
+```javascript
+// Use environment variables
+const config = {
+  github_token: process.env.GITHUB_TOKEN,
+  gitlab_token: process.env.GITLAB_TOKEN,
+  bitbucket_token: process.env.BITBUCKET_TOKEN
+};
+
+// Never hardcode tokens
+// ❌ Bad
+const token = "ghp_actual_token_here";
+
+// ✅ Good  
+const token = process.env.GITHUB_TOKEN;
+```
+</Accordion>
+
+<Accordion title="Production Environment">
+**Container secrets:**
+```docker
+# Docker secrets
+docker secret create github_token /path/to/token/file
+
+# Docker Compose
+version: '3.8'
+services:
+  deepwiki:
+    image: deepwiki-open
+    secrets:
+      - github_token
+    environment:
+      - GITHUB_TOKEN_FILE=/run/secrets/github_token
+```
+
+**Kubernetes secrets:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repository-tokens
+type: Opaque
+data:
+  github-token: <base64-encoded-token>
+  gitlab-token: <base64-encoded-token>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepwiki
+spec:
+  template:
+    spec:
+      containers:
+      - name: deepwiki
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: repository-tokens
+              key: github-token
+```
+</Accordion>
+
+<Accordion title="Token Rotation">
+**Automated rotation strategy:**
+1. **Generate new tokens** before current ones expire
+2. **Test new tokens** in staging environment
+3. **Update production** with new tokens
+4. **Revoke old tokens** after successful deployment
+5. **Monitor for failures** and rollback if needed
+
+**Rotation schedule:**
+- **High-security environments:** 30-60 days
+- **Standard environments:** 90 days
+- **Development environments:** 180 days
+
+```bash
+#!/bin/bash
+# Token rotation script example
+NEW_TOKEN="ghp_new_token_here"
+OLD_TOKEN="ghp_old_token_here"
+
+# Test new token
+if curl -H "Authorization: token $NEW_TOKEN" https://api.github.com/user; then
+    # Update production
+    kubectl patch secret repository-tokens -p='{"data":{"github-token":"'$(echo -n $NEW_TOKEN | base64)'"}}'
+    
+    # Revoke old token (manual step)
+    echo "Update successful. Revoke old token: $OLD_TOKEN"
+else
+    echo "New token validation failed. Aborting rotation."
+    exit 1
+fi
+```
+</Accordion>
+</AccordionGroup>
+
+### Access Control
+
+<Steps>
+<Step title="Principle of Least Privilege">
+**Minimize token permissions:**
+- Use read-only scopes when possible
+- Avoid admin or write permissions
+- Prefer fine-grained tokens over classic tokens
+- Regular audit of token permissions
+
+<Info>
+Review token permissions quarterly to ensure they match current needs.
+</Info>
+</Step>
+
+<Step title="Network Security">
+**Restrict token usage:**
+```nginx
+# Nginx configuration for IP restrictions
+location /api/wiki/generate {
+    allow 192.168.1.0/24;  # Internal network
+    allow 10.0.0.0/8;      # Private network
+    deny all;              # Block external access
+    
+    proxy_pass http://deepwiki-backend;
+}
+```
+
+**API endpoint protection:**
+```python
+# Rate limiting by token
+from functools import lru_cache
+
+@lru_cache(maxsize=1000)
+def get_rate_limit(token: str):
+    return RateLimiter(requests_per_minute=10)
+
+def validate_token_request(token: str):
+    rate_limiter = get_rate_limit(token)
+    if not rate_limiter.allow_request():
+        raise RateLimitExceeded("Token rate limit exceeded")
+```
+</Step>
+
+<Step title="Monitoring and Alerting">
+**Token usage monitoring:**
+```javascript
+{
+  "token_monitoring": {
+    "track_usage": true,
+    "alert_on_failures": true,
+    "log_access_patterns": true,
+    "detect_anomalies": true
+  },
+  "alerts": {
+    "token_expiry_warning": "7d",
+    "unusual_usage_pattern": true,
+    "failed_authentication": {
+      "threshold": 5,
+      "window": "1h"
+    }
+  }
+}
+```
+
+**Security event logging:**
+```python
+import logging
+
+security_logger = logging.getLogger('security')
+
+def log_token_usage(token_hash: str, repo_url: str, success: bool):
+    security_logger.info({
+        'event': 'token_usage',
+        'token_hash': token_hash,
+        'repository': repo_url,
+        'success': success,
+        'timestamp': datetime.now().isoformat(),
+        'ip_address': get_client_ip()
+    })
+```
+</Step>
+</Steps>
+
+## Using Tokens with DeepWiki
+
+### API Integration
+
+<Tabs>
+<Tab title="HTTP API">
+**Direct API calls:**
+```bash
+# GitHub private repository
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://github.com/company/private-repo",
+    "access_token": "ghp_xxxxxxxxxxxxxxxxxxxx",
+    "model_provider": "google"
+  }'
+
+# GitLab private repository  
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://gitlab.com/company/private-project",
+    "access_token": "glpat-xxxxxxxxxxxxxxxxxxxx", 
+    "model_provider": "google"
+  }'
+
+# BitBucket private repository
+curl -X POST "http://localhost:8001/wiki/generate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repo_url": "https://bitbucket.org/company/private-repo",
+    "access_token": "your-app-password",
+    "username": "your-username",
+    "model_provider": "google"
+  }'
+```
+</Tab>
+
+<Tab title="Python SDK">
+**Python client example:**
+```python
+import requests
+import os
+
+class DeepWikiClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url
+        
+    def generate_wiki(self, repo_url: str, platform: str = "github"):
+        token_env_map = {
+            "github": "GITHUB_TOKEN",
+            "gitlab": "GITLAB_TOKEN", 
+            "bitbucket": "BITBUCKET_TOKEN"
+        }
+        
+        token = os.getenv(token_env_map[platform])
+        if not token:
+            raise ValueError(f"No token found for {platform}")
+            
+        payload = {
+            "repo_url": repo_url,
+            "access_token": token,
+            "model_provider": "google",
+            "force_regenerate": False
+        }
+        
+        # Add username for BitBucket
+        if platform == "bitbucket":
+            payload["username"] = os.getenv("BITBUCKET_USERNAME")
+            
+        response = requests.post(
+            f"{self.base_url}/wiki/generate",
+            json=payload
+        )
+        return response.json()
+
+# Usage
+client = DeepWikiClient("http://localhost:8001")
+result = client.generate_wiki(
+    "https://github.com/company/private-repo",
+    platform="github"
+)
+```
+</Tab>
+
+<Tab title="JavaScript SDK">
+**JavaScript client example:**
+```javascript
+class DeepWikiClient {
+  constructor(baseUrl) {
+    this.baseUrl = baseUrl;
+  }
+  
+  async generateWiki(repoUrl, options = {}) {
+    const {
+      platform = 'github',
+      accessToken,
+      username,
+      modelProvider = 'google',
+      forceRegenerate = false
+    } = options;
+    
+    const payload = {
+      repo_url: repoUrl,
+      access_token: accessToken,
+      model_provider: modelProvider,
+      force_regenerate: forceRegenerate
+    };
+    
+    // Add username for BitBucket
+    if (platform === 'bitbucket' && username) {
+      payload.username = username;
+    }
+    
+    const response = await fetch(`${this.baseUrl}/wiki/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    return response.json();
+  }
+}
+
+// Usage with environment variables
+const client = new DeepWikiClient('http://localhost:8001');
+const result = await client.generateWiki(
+  'https://github.com/company/private-repo',
+  {
+    platform: 'github',
+    accessToken: process.env.GITHUB_TOKEN
+  }
+);
+```
+</Tab>
+</Tabs>
+
+### Web Interface Integration
+
+<Steps>
+<Step title="Token Input Component">
+**Secure token input:**
+```javascript
+import { useState } from 'react';
+
+function TokenInput({ onTokenChange, platform }) {
+  const [token, setToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
+  
+  const handleTokenChange = (value) => {
+    setToken(value);
+    onTokenChange(value);
+  };
+  
+  const tokenPatterns = {
+    github: /^(ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]+)$/,
+    gitlab: /^glpat-[a-zA-Z0-9]{20}$/,
+    bitbucket: /^[a-zA-Z0-9]+$/
+  };
+  
+  const isValidToken = tokenPatterns[platform]?.test(token);
+  
+  return (
+    <div className="token-input">
+      <label htmlFor="access-token">
+        {platform.charAt(0).toUpperCase() + platform.slice(1)} Access Token
+      </label>
+      <div className="input-group">
+        <input
+          id="access-token"
+          type={showToken ? 'text' : 'password'}
+          value={token}
+          onChange={(e) => handleTokenChange(e.target.value)}
+          placeholder={`Enter ${platform} access token`}
+          className={isValidToken ? 'valid' : 'invalid'}
+        />
+        <button
+          type="button"
+          onClick={() => setShowToken(!showToken)}
+          aria-label={showToken ? 'Hide token' : 'Show token'}
+        >
+          {showToken ? '👁️' : '👁️‍🗨️'}
+        </button>
+      </div>
+      {!isValidToken && token.length > 0 && (
+        <div className="error">
+          Invalid {platform} token format
+        </div>
+      )}
+    </div>
+  );
+}
+```
+</Step>
+
+<Step title="Token Validation">
+**Client-side validation:**
+```javascript
+async function validateRepositoryAccess(repoUrl, accessToken, platform) {
+  try {
+    const response = await fetch('/api/validate-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repo_url: repoUrl,
+        access_token: accessToken,
+        platform: platform
+      })
+    });
+    
+    const result = await response.json();
+    return {
+      valid: result.valid,
+      permissions: result.permissions,
+      error: result.error
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Network error during validation'
+    };
+  }
+}
+
+// Usage in form submission
+const handleSubmit = async (formData) => {
+  const validation = await validateRepositoryAccess(
+    formData.repoUrl,
+    formData.accessToken,
+    formData.platform
+  );
+  
+  if (!validation.valid) {
+    setError(`Token validation failed: ${validation.error}`);
+    return;
+  }
+  
+  // Proceed with wiki generation
+  generateWiki(formData);
+};
+```
+</Step>
+</Steps>
+
+## Organization and Enterprise Considerations
+
+### GitHub Organizations
+
+<AccordionGroup>
+<Accordion title="Organization Policies">
+**Common organizational restrictions:**
+- Personal access token policies
+- Required two-factor authentication
+- IP allowlists for API access
+- Audit logging requirements
+
+**Working with restrictions:**
+1. **Check organization settings** before creating tokens
+2. **Request necessary permissions** from administrators
+3. **Use fine-grained tokens** when possible for better compliance
+4. **Document token usage** for audit purposes
+
+```javascript
+{
+  "organization_requirements": {
+    "two_factor_required": true,
+    "saml_sso_required": true,
+    "ip_allowlist_enabled": true,
+    "allowed_ips": ["203.0.113.0/24", "198.51.100.0/24"],
+    "audit_logging": true
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Enterprise Security">
+**Enterprise GitHub features:**
+- Advanced security features
+- Custom SAML/OIDC integration
+- Advanced audit logging
+- Custom policies and restrictions
+
+**Token considerations:**
+- Shorter token lifetimes
+- Required approval workflows
+- Enhanced monitoring requirements
+- Integration with enterprise identity systems
+
+**Best practices:**
+1. **Coordinate with security teams** on token policies
+2. **Use service accounts** for automated access
+3. **Implement token rotation** procedures
+4. **Monitor token usage** closely
+</Accordion>
+</AccordionGroup>
+
+### GitLab Groups and Projects
+
+<Tabs>
+<Tab title="Group-Level Access">
+**GitLab group considerations:**
+- Group membership requirements
+- Project-level permissions inheritance
+- Shared runner restrictions
+- Group-level tokens (GitLab Premium+)
+
+```javascript
+{
+  "group_access": {
+    "group_name": "company-dev-team",
+    "member_role": "developer",
+    "project_access_level": "read",
+    "shared_runners_enabled": false
+  }
+}
+```
+</Tab>
+
+<Tab title="Project Permissions">
+**Project-specific settings:**
+- Project visibility levels
+- Repository access controls
+- CI/CD variable access
+- Protected branch rules
+
+**Access verification:**
+```bash
+# Test project access
+curl -H "Private-Token: glpat-xxxxxxxxxxxxxxxxxxxx" \
+     "https://gitlab.com/api/v4/projects/project-id"
+
+# Check specific permissions
+curl -H "Private-Token: glpat-xxxxxxxxxxxxxxxxxxxx" \
+     "https://gitlab.com/api/v4/projects/project-id/repository/files/README.md?ref=main"
+```
+</Tab>
+</Tabs>
+
+## Token Management at Scale
+
+### Multi-Repository Management
+
+<Steps>
+<Step title="Centralized Token Store">
+**Token management system:**
+```python
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Dict, List
+import keyring
+
+@dataclass
+class RepositoryToken:
+    platform: str
+    token: str
+    repositories: List[str]
+    expires_at: datetime
+    permissions: List[str]
+    
+class TokenManager:
+    def __init__(self):
+        self.tokens: Dict[str, RepositoryToken] = {}
+    
+    def add_token(self, name: str, token: RepositoryToken):
+        # Store in secure keyring
+        keyring.set_password("deepwiki", name, token.token)
+        self.tokens[name] = token
+        
+    def get_token_for_repo(self, repo_url: str) -> str:
+        for token_data in self.tokens.values():
+            if any(repo in repo_url for repo in token_data.repositories):
+                return keyring.get_password("deepwiki", token_data.token)
+        return None
+        
+    def check_expiring_tokens(self, days: int = 7) -> List[str]:
+        expiring = []
+        threshold = datetime.now() + timedelta(days=days)
+        
+        for name, token in self.tokens.items():
+            if token.expires_at < threshold:
+                expiring.append(name)
+                
+        return expiring
+```
+</Step>
+
+<Step title="Automated Token Rotation">
+**Rotation workflow:**
+```python
+class TokenRotationService:
+    def __init__(self, token_manager: TokenManager):
+        self.token_manager = token_manager
+        
+    async def rotate_github_token(self, old_token_name: str):
+        # This would integrate with GitHub API to create new tokens
+        # Note: GitHub doesn't provide token creation API
+        # This is a conceptual example
+        
+        old_token = self.token_manager.tokens[old_token_name]
+        
+        # Generate new token (manual process for GitHub)
+        new_token_value = await self._prompt_for_new_token()
+        
+        # Test new token
+        if await self._test_token_access(new_token_value, old_token.repositories):
+            # Update stored token
+            new_token = RepositoryToken(
+                platform=old_token.platform,
+                token=new_token_value,
+                repositories=old_token.repositories,
+                expires_at=datetime.now() + timedelta(days=90),
+                permissions=old_token.permissions
+            )
+            
+            self.token_manager.add_token(old_token_name, new_token)
+            
+            # Schedule old token revocation
+            await self._schedule_token_revocation(old_token.token)
+            
+            return True
+        return False
+```
+</Step>
+</Steps>
+
+### Monitoring and Analytics
+
+<AccordionGroup>
+<Accordion title="Usage Analytics">
+**Track token performance:**
+```python
+import logging
+from collections import defaultdict
+from datetime import datetime
+
+class TokenAnalytics:
+    def __init__(self):
+        self.usage_stats = defaultdict(list)
+        self.error_stats = defaultdict(int)
+        
+    def log_token_usage(self, token_hash: str, repo_url: str, 
+                       success: bool, response_time: float):
+        event = {
+            'timestamp': datetime.now(),
+            'repository': repo_url,
+            'success': success,
+            'response_time': response_time
+        }
+        
+        self.usage_stats[token_hash].append(event)
+        
+        if not success:
+            self.error_stats[token_hash] += 1
+            
+    def generate_usage_report(self, token_hash: str) -> dict:
+        events = self.usage_stats[token_hash]
+        
+        if not events:
+            return {'error': 'No usage data found'}
+            
+        successful_requests = sum(1 for e in events if e['success'])
+        total_requests = len(events)
+        avg_response_time = sum(e['response_time'] for e in events) / total_requests
+        
+        return {
+            'total_requests': total_requests,
+            'successful_requests': successful_requests,
+            'success_rate': successful_requests / total_requests * 100,
+            'average_response_time': avg_response_time,
+            'error_count': self.error_stats[token_hash],
+            'last_used': max(e['timestamp'] for e in events)
+        }
+```
+</Accordion>
+
+<Accordion title="Health Monitoring">
+**Token health checks:**
+```bash
+#!/bin/bash
+# Token health check script
+
+check_github_token() {
+    local token=$1
+    local response=$(curl -s -w "%{http_code}" -o /dev/null \
+        -H "Authorization: token $token" \
+        https://api.github.com/user)
+    
+    if [ "$response" = "200" ]; then
+        echo "GitHub token: HEALTHY"
+        return 0
+    else
+        echo "GitHub token: FAILED (HTTP $response)"
+        return 1
+    fi
+}
+
+check_gitlab_token() {
+    local token=$1
+    local response=$(curl -s -w "%{http_code}" -o /dev/null \
+        -H "Private-Token: $token" \
+        https://gitlab.com/api/v4/user)
+    
+    if [ "$response" = "200" ]; then
+        echo "GitLab token: HEALTHY"
+        return 0
+    else
+        echo "GitLab token: FAILED (HTTP $response)"
+        return 1
+    fi
+}
+
+# Run health checks
+check_github_token "$GITHUB_TOKEN"
+check_gitlab_token "$GITLAB_TOKEN"
+
+# Alert on failures
+if [ $? -ne 0 ]; then
+    # Send alert (email, Slack, etc.)
+    echo "Token health check failed - alerting administrators"
+fi
+```
+</Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+<Accordion title="Authentication Failures">
+**Symptom:** "Bad credentials" or "Invalid token" errors
+
+**Diagnosis checklist:**
+1. **Token format validation:**
+   ```bash
+   # GitHub Classic: ghp_xxxxxxxxxxxxxxxxxxxx (40 chars)
+   # GitHub Fine-grained: github_pat_xxxx (variable length)
+   # GitLab: glpat-xxxxxxxxxxxxxxxxxxxx (25 chars)
+   # BitBucket: Variable format
+   ```
+
+2. **Token expiration check:**
+   ```bash
+   # Check GitHub token
+   curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+   
+   # Check GitLab token
+   curl -H "Private-Token: $GITLAB_TOKEN" https://gitlab.com/api/v4/user
+   ```
+
+3. **Permission verification:**
+   ```bash
+   # Test repository access
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+        https://api.github.com/repos/owner/private-repo
+   ```
+
+**Solutions:**
+- Generate new token with correct permissions
+- Verify token hasn't expired
+- Check organization SSO requirements
+- Confirm repository access permissions
+</Accordion>
+
+<Accordion title="Permission Issues">
+**Symptom:** "Not Found" errors for existing repositories
+
+**Common causes:**
+- Token lacks repository scope
+- Repository is private but token has public-only permissions
+- Organization requires SSO authorization for tokens
+- User doesn't have repository access
+
+**Resolution steps:**
+1. **Verify repository permissions:**
+   ```python
+   import requests
+   
+   def check_repo_access(token, repo_url):
+       # Extract owner/repo from URL
+       parts = repo_url.split('/')
+       owner, repo = parts[-2], parts[-1]
+       
+       response = requests.get(
+           f"https://api.github.com/repos/{owner}/{repo}",
+           headers={"Authorization": f"token {token}"}
+       )
+       
+       return {
+           'status_code': response.status_code,
+           'accessible': response.status_code == 200,
+           'error': response.json() if response.status_code != 200 else None
+       }
+   ```
+
+2. **Update token permissions:**
+   - For GitHub: Add `repo` scope for private repositories
+   - For GitLab: Add `read_repository` scope
+   - For BitBucket: Ensure "Repositories: Read" permission
+
+3. **Handle organization restrictions:**
+   - Authorize token for SSO if required
+   - Request repository access from administrators
+   - Use organization-approved tokens
+</Accordion>
+
+<Accordion title="Rate Limiting">
+**Symptom:** "API rate limit exceeded" errors
+
+**Understanding rate limits:**
+- **GitHub:** 5,000 requests/hour for authenticated requests
+- **GitLab:** 2,000 requests/minute for personal tokens
+- **BitBucket:** 1,000 requests/hour for authenticated requests
+
+**Mitigation strategies:**
+```python
+import time
+import requests
+from functools import wraps
+
+def rate_limited_request(max_retries=3, delay=60):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except RateLimitError as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(delay * (attempt + 1))
+                        continue
+                    raise
+            return wrapper
+    return decorator
+
+@rate_limited_request()
+def make_api_request(url, headers):
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 429:  # Too Many Requests
+        raise RateLimitError("Rate limit exceeded")
+        
+    return response
+```
+
+**Best practices:**
+- Implement exponential backoff
+- Cache API responses when possible
+- Use webhooks instead of polling
+- Monitor rate limit headers
+</Accordion>
+</AccordionGroup>
+
+### Advanced Debugging
+
+<Steps>
+<Step title="Enable Debug Logging">
+**API server debugging:**
+```python
+import logging
+
+# Configure detailed logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('deepwiki-debug.log'),
+        logging.StreamHandler()
+    ]
+)
+
+# Log repository access attempts
+repo_logger = logging.getLogger('repository_access')
+
+def log_repository_access(repo_url, token_hash, success, error=None):
+    repo_logger.debug({
+        'repository': repo_url,
+        'token_hash': token_hash,  # Never log actual token
+        'success': success,
+        'error': str(error) if error else None,
+        'timestamp': datetime.now().isoformat()
+    })
+```
+</Step>
+
+<Step title="Network Diagnostics">
+**Connection testing:**
+```bash
+#!/bin/bash
+# Network connectivity test
+
+test_github_connectivity() {
+    echo "Testing GitHub API connectivity..."
+    
+    # Test DNS resolution
+    nslookup api.github.com
+    
+    # Test HTTPS connectivity
+    curl -I https://api.github.com/
+    
+    # Test authentication
+    curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
+}
+
+test_enterprise_connectivity() {
+    local enterprise_url=$1
+    echo "Testing enterprise connectivity: $enterprise_url"
+    
+    # Test SSL certificate
+    openssl s_client -connect ${enterprise_url}:443 -servername $enterprise_url
+    
+    # Test API endpoint
+    curl -I ${enterprise_url}/api/v3/
+}
+
+# Run tests
+test_github_connectivity
+test_enterprise_connectivity "github.enterprise.com"
+```
+</Step>
+
+<Step title="Token Analysis Tools">
+**Token inspection utility:**
+```python
+import base64
+import json
+from datetime import datetime
+
+class TokenAnalyzer:
+    def __init__(self):
+        self.platform_patterns = {
+            'github_classic': r'^ghp_[a-zA-Z0-9]{36}$',
+            'github_fine_grained': r'^github_pat_[a-zA-Z0-9_]+$',
+            'gitlab': r'^glpat-[a-zA-Z0-9]{20}$',
+            'bitbucket': r'^[a-zA-Z0-9]+$'
+        }
+    
+    def identify_platform(self, token: str) -> str:
+        for platform, pattern in self.platform_patterns.items():
+            if re.match(pattern, token):
+                return platform
+        return 'unknown'
+    
+    def analyze_github_token(self, token: str) -> dict:
+        headers = {'Authorization': f'token {token}'}
+        
+        # Get token info (doesn't exist in GitHub API)
+        # This is conceptual - GitHub doesn't provide token introspection
+        user_response = requests.get('https://api.github.com/user', headers=headers)
+        
+        if user_response.status_code != 200:
+            return {'error': 'Invalid token or insufficient permissions'}
+            
+        user_data = user_response.json()
+        
+        # Test repository access
+        repos_response = requests.get('https://api.github.com/user/repos', headers=headers)
+        
+        return {
+            'platform': 'github',
+            'user': user_data.get('login'),
+            'scopes': user_response.headers.get('X-OAuth-Scopes', '').split(', '),
+            'rate_limit': {
+                'limit': user_response.headers.get('X-RateLimit-Limit'),
+                'remaining': user_response.headers.get('X-RateLimit-Remaining'),
+                'reset': user_response.headers.get('X-RateLimit-Reset')
+            },
+            'repository_access': repos_response.status_code == 200
+        }
+
+# Usage
+analyzer = TokenAnalyzer()
+result = analyzer.analyze_github_token("ghp_xxxxxxxxxxxxxxxxxxxx")
+print(json.dumps(result, indent=2))
+```
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="API Authentication" icon="key" href="/api/authentication">
+  Learn about API-level authentication and security
+</Card>
+
+<Card title="Security Guide" icon="shield" href="/reference/security">
+  Implement comprehensive security measures
+</Card>
+
+<Card title="Production Setup" icon="cloud" href="/guides/production-setup">
+  Deploy with proper token management in production
+</Card>
+
+<Card title="Troubleshooting" icon="wrench" href="/reference/troubleshooting">
+  Resolve common issues and get support
+</Card>
+</CardGroup>

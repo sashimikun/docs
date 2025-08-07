@@ -1,0 +1,738 @@
+---
+title: Architecture Overview
+description: Deep dive into DeepWiki's system architecture, components, and design decisions
+---
+
+# Architecture Overview
+
+DeepWiki is a modern AI-powered documentation generation system built with a scalable microservices architecture. This document provides a comprehensive overview of the system's architecture, components, and design decisions.
+
+## High-Level System Architecture
+
+<div className="mermaid">
+```mermaid
+graph TB
+    %% Client Layer
+    subgraph "Client Layer"
+        Browser[Web Browser]
+        CLI[CLI Tools]
+    end
+
+    %% Application Layer
+    subgraph "Frontend (Next.js)"
+        UI[React Components]
+        SSR[Server-Side Rendering]
+        API_Routes[API Routes]
+        WS_Client[WebSocket Client]
+    end
+
+    %% API Gateway
+    subgraph "API Layer"
+        FastAPI[FastAPI Server]
+        WS_Handler[WebSocket Handler]
+        REST[REST Endpoints]
+    end
+
+    %% Core Services
+    subgraph "Core Services"
+        RAG[RAG Pipeline]
+        Embedder[Embedding Service]
+        Generator[Content Generator]
+        Cache[Wiki Cache Manager]
+    end
+
+    %% AI Providers
+    subgraph "AI Providers"
+        OpenAI[OpenAI API]
+        Google[Google Gemini]
+        Bedrock[AWS Bedrock]
+        Azure[Azure AI]
+        Ollama[Ollama Local]
+    end
+
+    %% Storage Layer
+    subgraph "Storage"
+        FileCache[File System Cache]
+        VectorDB[FAISS Vector DB]
+        Memory[Conversation Memory]
+    end
+
+    %% External Services
+    subgraph "External"
+        GitHub[GitHub API]
+        GitLab[GitLab API]
+    end
+
+    %% Connections
+    Browser --> UI
+    CLI --> REST
+    UI --> SSR
+    UI --> API_Routes
+    UI --> WS_Client
+    
+    SSR --> FastAPI
+    API_Routes --> FastAPI
+    WS_Client --> WS_Handler
+    
+    FastAPI --> RAG
+    WS_Handler --> RAG
+    FastAPI --> Cache
+    
+    RAG --> Embedder
+    RAG --> Generator
+    RAG --> Memory
+    
+    Embedder --> VectorDB
+    Generator --> OpenAI
+    Generator --> Google
+    Generator --> Bedrock
+    Generator --> Azure
+    Generator --> Ollama
+    
+    Cache --> FileCache
+    FastAPI --> GitHub
+    FastAPI --> GitLab
+```
+</div>
+
+## Frontend Architecture
+
+The frontend is built with Next.js 14, leveraging modern React patterns and TypeScript for type safety.
+
+### Component Structure
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Page Components"
+        HomePage[Home Page]
+        WikiPage[Wiki Page]
+        ProjectsPage[Projects Page]
+        SlidesPage[Slides Page]
+        WorkshopPage[Workshop Page]
+    end
+
+    subgraph "Feature Components"
+        Ask[Ask Component]
+        WikiTree[Wiki Tree View]
+        ProcessedProjects[Projects List]
+        ModelSelection[Model Selector]
+        ConfigModal[Configuration]
+    end
+
+    subgraph "UI Components"
+        Markdown[Markdown Renderer]
+        Mermaid[Mermaid Diagrams]
+        ThemeToggle[Theme Toggle]
+        TokenInput[Token Input]
+        UserSelector[User Selector]
+    end
+
+    subgraph "Context Providers"
+        LanguageCtx[Language Context]
+        ThemeProvider[Theme Provider]
+    end
+
+    subgraph "Utilities"
+        WebSocketClient[WebSocket Client]
+        URLDecoder[URL Decoder]
+        RepoUtils[Repository Utils]
+    end
+
+    HomePage --> Ask
+    HomePage --> ModelSelection
+    WikiPage --> WikiTree
+    WikiPage --> Ask
+    ProjectsPage --> ProcessedProjects
+    
+    Ask --> WebSocketClient
+    Ask --> Markdown
+    Markdown --> Mermaid
+    
+    HomePage --> LanguageCtx
+    WikiPage --> LanguageCtx
+```
+</div>
+
+### Key Frontend Features
+
+1. **Server-Side Rendering (SSR)**
+   - Pre-renders pages for better SEO and initial load performance
+   - Dynamic route generation for repository pages
+
+2. **Real-time Communication**
+   - WebSocket connection for streaming chat responses
+   - Progressive content rendering
+
+3. **Internationalization (i18n)**
+   - Support for 10+ languages
+   - Context-based language switching
+
+4. **Responsive Design**
+   - Mobile-first approach
+   - Adaptive layouts for different screen sizes
+
+## Backend Architecture
+
+The backend is built with FastAPI, providing high-performance async capabilities and automatic API documentation.
+
+### API Structure
+
+<div className="mermaid">
+```mermaid
+graph LR
+    subgraph "API Endpoints"
+        Auth["/auth/*"]
+        Chat["/chat/*"]
+        Wiki["/api/wiki_cache"]
+        Models["/models/config"]
+        Export["/export/wiki"]
+        Health["/health"]
+    end
+
+    subgraph "Core Modules"
+        Main[main.py]
+        API[api.py]
+        RAG_Module[rag.py]
+        Pipeline[data_pipeline.py]
+    end
+
+    subgraph "Client Adapters"
+        OpenAI_Client[openai_client.py]
+        Google_Client[gemini_client.py]
+        Bedrock_Client[bedrock_client.py]
+        Azure_Client[azureai_client.py]
+        Ollama_Client[ollama_patch.py]
+    end
+
+    API --> Auth
+    API --> Chat
+    API --> Wiki
+    API --> Models
+    API --> Export
+    
+    Chat --> RAG_Module
+    Wiki --> Pipeline
+    
+    RAG_Module --> OpenAI_Client
+    RAG_Module --> Google_Client
+    RAG_Module --> Bedrock_Client
+```
+</div>
+
+### RAG Pipeline Architecture
+
+The Retrieval-Augmented Generation (RAG) pipeline is the core of DeepWiki's intelligence.
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "RAG Pipeline"
+        Input[User Query]
+        
+        subgraph "Retrieval Phase"
+            Embedder[Text Embedder]
+            VectorSearch[FAISS Vector Search]
+            ContextRetrieval[Context Retrieval]
+        end
+        
+        subgraph "Augmentation Phase"
+            ContextProcessor[Context Processor]
+            MemoryIntegration[Memory Integration]
+            PromptBuilder[Prompt Builder]
+        end
+        
+        subgraph "Generation Phase"
+            ModelSelector[Model Selector]
+            Generator[Content Generator]
+            StreamProcessor[Stream Processor]
+        end
+        
+        Output[Generated Response]
+    end
+    
+    Input --> Embedder
+    Embedder --> VectorSearch
+    VectorSearch --> ContextRetrieval
+    ContextRetrieval --> ContextProcessor
+    ContextProcessor --> MemoryIntegration
+    MemoryIntegration --> PromptBuilder
+    PromptBuilder --> ModelSelector
+    ModelSelector --> Generator
+    Generator --> StreamProcessor
+    StreamProcessor --> Output
+```
+</div>
+
+## Data Flow
+
+### Wiki Generation Flow
+
+<div className="mermaid">
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant Cache
+    participant RAG
+    participant VCS
+    participant AI
+
+    User->>Frontend: Request Wiki for Repo
+    Frontend->>API: Check Wiki Cache
+    API->>Cache: Query Cache
+    
+    alt Cache Hit
+        Cache-->>API: Return Cached Wiki
+        API-->>Frontend: Send Wiki Data
+    else Cache Miss
+        API->>VCS: Fetch Repository
+        VCS-->>API: Repository Data
+        API->>RAG: Process Repository
+        RAG->>AI: Generate Wiki Structure
+        AI-->>RAG: Wiki Structure
+        
+        loop For Each Page
+            RAG->>AI: Generate Page Content
+            AI-->>RAG: Page Content
+        end
+        
+        RAG-->>API: Complete Wiki
+        API->>Cache: Store Wiki
+        API-->>Frontend: Send Wiki Data
+    end
+    
+    Frontend-->>User: Display Wiki
+```
+</div>
+
+### Real-time Chat Flow
+
+<div className="mermaid">
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant WebSocket
+    participant RAG
+    participant VectorDB
+    participant AI
+
+    User->>Frontend: Ask Question
+    Frontend->>WebSocket: Open Connection
+    WebSocket->>RAG: Process Query
+    
+    RAG->>VectorDB: Search Context
+    VectorDB-->>RAG: Relevant Documents
+    
+    RAG->>AI: Generate Response
+    AI-->>RAG: Stream Tokens
+    
+    loop Streaming
+        RAG-->>WebSocket: Send Token
+        WebSocket-->>Frontend: Update UI
+        Frontend-->>User: Display Token
+    end
+    
+    WebSocket->>WebSocket: Close Connection
+```
+</div>
+
+## Component Interactions
+
+### Core Service Dependencies
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Service Layer"
+        API[API Service]
+        RAG[RAG Service]
+        Cache[Cache Service]
+        Embed[Embedding Service]
+    end
+
+    subgraph "Data Layer"
+        FileSystem[File System]
+        VectorStore[Vector Store]
+        Memory[Memory Store]
+    end
+
+    subgraph "External"
+        AIProviders[AI Providers]
+        VCSProviders[VCS Providers]
+    end
+
+    API --> RAG
+    API --> Cache
+    RAG --> Embed
+    
+    Cache --> FileSystem
+    Embed --> VectorStore
+    RAG --> Memory
+    
+    RAG --> AIProviders
+    API --> VCSProviders
+    
+    style API fill:#f9f,stroke:#333,stroke-width:4px
+    style RAG fill:#bbf,stroke:#333,stroke-width:4px
+```
+</div>
+
+## Database and Storage Design
+
+### Storage Architecture
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Storage Types"
+        subgraph "File System Storage"
+            WikiCache[Wiki Cache<br/>~/.adalflow/wikicache/]
+            Embeddings[Embeddings<br/>~/.adalflow/embeddings/]
+            Logs[Application Logs<br/>./api/logs/]
+        end
+
+        subgraph "Vector Storage"
+            FAISS[FAISS Index]
+            EmbeddingVectors[Embedding Vectors]
+        end
+
+        subgraph "Memory Storage"
+            ConversationHistory[Conversation History]
+            DialogTurns[Dialog Turns]
+        end
+    end
+
+    subgraph "Data Models"
+        WikiStructure[Wiki Structure Model]
+        WikiPage[Wiki Page Model]
+        ProcessedProject[Processed Project Model]
+        CacheMetadata[Cache Metadata]
+    end
+
+    WikiStructure --> WikiCache
+    WikiPage --> WikiCache
+    ProcessedProject --> WikiCache
+    CacheMetadata --> WikiCache
+    
+    EmbeddingVectors --> FAISS
+    ConversationHistory --> DialogTurns
+```
+</div>
+
+### Cache Key Structure
+
+```
+deepwiki_cache_{repo_type}_{owner}_{repo}_{language}.json
+
+Example:
+deepwiki_cache_github_microsoft_vscode_en.json
+```
+
+## Caching Strategies
+
+### Multi-Level Caching
+
+1. **Wiki Cache (Persistent)**
+   - Full wiki structures stored as JSON
+   - Language-specific caching
+   - File-based for durability
+
+2. **Vector Cache (In-Memory)**
+   - FAISS indices for fast retrieval
+   - Rebuilt on startup from embeddings
+
+3. **Conversation Cache (Session)**
+   - Dialog history per session
+   - Memory-efficient circular buffer
+
+### Cache Invalidation
+
+<div className="mermaid">
+```mermaid
+flowchart LR
+    subgraph "Invalidation Triggers"
+        RepoUpdate[Repository Update]
+        ModelChange[Model Change]
+        UserRequest[User Request]
+        TTL[Time-To-Live]
+    end
+
+    subgraph "Cache Actions"
+        Invalidate[Invalidate Entry]
+        Regenerate[Regenerate Content]
+        Update[Update Metadata]
+    end
+
+    RepoUpdate --> Invalidate
+    ModelChange --> Invalidate
+    UserRequest --> Invalidate
+    TTL --> Invalidate
+    
+    Invalidate --> Regenerate
+    Regenerate --> Update
+```
+</div>
+
+## Security Architecture
+
+### Authentication & Authorization
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Auth Flow"
+        Client[Client Request]
+        AuthCheck[Auth Check]
+        CodeValidation[Code Validation]
+        TokenValidation[Token Validation]
+        Access[Grant Access]
+    end
+
+    subgraph "Security Layers"
+        CORS[CORS Middleware]
+        RateLimit[Rate Limiting]
+        InputValidation[Input Validation]
+        APIKeys[API Key Management]
+    end
+
+    Client --> CORS
+    CORS --> AuthCheck
+    AuthCheck --> CodeValidation
+    AuthCheck --> TokenValidation
+    CodeValidation --> Access
+    TokenValidation --> Access
+    
+    CORS --> RateLimit
+    RateLimit --> InputValidation
+    InputValidation --> APIKeys
+```
+</div>
+
+### Security Features
+
+1. **API Security**
+   - CORS configuration for cross-origin requests
+   - Environment-based API key management
+   - Input validation and sanitization
+
+2. **Data Protection**
+   - Token-based repository access
+   - Secure storage of credentials
+   - Encrypted communication channels
+
+3. **Rate Limiting**
+   - Request throttling per IP
+   - WebSocket connection limits
+   - Resource usage monitoring
+
+## Scalability Considerations
+
+### Horizontal Scaling
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Load Balancer"
+        LB[Nginx/HAProxy]
+    end
+
+    subgraph "Application Instances"
+        App1[DeepWiki Instance 1]
+        App2[DeepWiki Instance 2]
+        App3[DeepWiki Instance 3]
+    end
+
+    subgraph "Shared Storage"
+        SharedCache[Shared File System]
+        SharedVector[Distributed Vector DB]
+    end
+
+    LB --> App1
+    LB --> App2
+    LB --> App3
+    
+    App1 --> SharedCache
+    App2 --> SharedCache
+    App3 --> SharedCache
+    
+    App1 --> SharedVector
+    App2 --> SharedVector
+    App3 --> SharedVector
+```
+</div>
+
+### Performance Optimizations
+
+1. **Async Processing**
+   - Non-blocking I/O operations
+   - Concurrent request handling
+   - Stream processing for large responses
+
+2. **Resource Management**
+   - Memory limits (6GB max, 2GB reserved)
+   - Connection pooling
+   - Garbage collection optimization
+
+3. **Caching Strategy**
+   - Pre-computed wiki structures
+   - Embedding reuse
+   - Response streaming
+
+## Technology Stack
+
+### Frontend Technologies
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| Framework | Next.js 14 | React framework with SSR |
+| Language | TypeScript | Type safety |
+| Styling | Tailwind CSS | Utility-first CSS |
+| UI Library | Radix UI | Accessible components |
+| State | React Context | Global state management |
+| HTTP | Fetch API | REST communication |
+| WebSocket | Native WebSocket | Real-time communication |
+| Markdown | react-markdown | Content rendering |
+| Diagrams | Mermaid | Flowchart rendering |
+
+### Backend Technologies
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| Framework | FastAPI | High-performance API |
+| Language | Python 3.11+ | Backend development |
+| Server | Uvicorn | ASGI server |
+| Vector DB | FAISS | Similarity search |
+| ML Framework | AdalFlow | RAG implementation |
+| Logging | Python logging | Application logs |
+| Environment | python-dotenv | Configuration |
+
+### AI/ML Stack
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| Embeddings | OpenAI/Gemini | Text embeddings |
+| Generation | Multiple LLMs | Content generation |
+| RAG | AdalFlow | Retrieval augmentation |
+| Vector Search | FAISS | Semantic search |
+
+### Infrastructure
+
+| Category | Technology | Purpose |
+|----------|------------|---------|
+| Container | Docker | Application packaging |
+| Orchestration | Docker Compose | Service management |
+| Storage | File System | Persistent storage |
+| Process Mgmt | Supervisor | Process control |
+
+## Deployment Architecture
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Production Environment"
+        subgraph "Container"
+            Supervisor[Supervisor]
+            NextJS[Next.js Server :3000]
+            FastAPI[FastAPI Server :8001]
+        end
+
+        subgraph "Volumes"
+            AppData[~/.adalflow/]
+            Logs[./api/logs/]
+        end
+
+        subgraph "Network"
+            Port3000[Port 3000]
+            Port8001[Port 8001]
+        end
+    end
+
+    Supervisor --> NextJS
+    Supervisor --> FastAPI
+    
+    NextJS --> AppData
+    FastAPI --> AppData
+    FastAPI --> Logs
+    
+    NextJS --> Port3000
+    FastAPI --> Port8001
+    
+    Port3000 --> |External Access| Users
+    Port8001 --> |API Access| Users
+```
+</div>
+
+## Best Practices & Design Principles
+
+### Architecture Principles
+
+1. **Separation of Concerns**
+   - Clear boundaries between frontend and backend
+   - Modular service design
+   - Independent scaling capabilities
+
+2. **Resilience**
+   - Graceful error handling
+   - Fallback mechanisms
+   - Health monitoring
+
+3. **Performance**
+   - Async-first design
+   - Efficient caching
+   - Resource optimization
+
+4. **Maintainability**
+   - Clean code architecture
+   - Comprehensive logging
+   - Type safety throughout
+
+### Development Guidelines
+
+1. **Code Organization**
+   - Feature-based module structure
+   - Consistent naming conventions
+   - Separation of business logic
+
+2. **Testing Strategy**
+   - Unit tests for core logic
+   - Integration tests for APIs
+   - End-to-end testing for critical flows
+
+3. **Documentation**
+   - Inline code documentation
+   - API documentation (OpenAPI)
+   - Architecture decision records
+
+## Future Enhancements
+
+### Planned Improvements
+
+1. **Scalability**
+   - Kubernetes deployment support
+   - Distributed caching with Redis
+   - Message queue integration
+
+2. **Features**
+   - Real-time collaboration
+   - Advanced analytics
+   - Plugin system
+
+3. **Performance**
+   - GraphQL API option
+   - Edge caching
+   - Optimized vector search
+
+### Architecture Evolution
+
+The architecture is designed to evolve with:
+- Microservices decomposition
+- Event-driven architecture
+- Serverless function support
+- Multi-region deployment
+
+## Conclusion
+
+DeepWiki's architecture balances performance, scalability, and maintainability while providing a robust platform for AI-powered documentation generation. The modular design allows for easy extension and adaptation to changing requirements.

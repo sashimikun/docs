@@ -1,0 +1,699 @@
+# Logging
+
+DeepWiki implements a comprehensive logging system designed for production environments, providing detailed insights into system behavior while maintaining performance and security.
+
+## Configuration
+
+### Environment Variables
+
+Configure DeepWiki's logging behavior through environment variables:
+
+```bash
+# Log level configuration
+LOG_LEVEL=info                    # Options: debug, info, warn, error
+NODE_ENV=production              # Affects log verbosity and format
+
+# Log output configuration
+LOG_FORMAT=json                  # Options: json, pretty
+LOG_TIMESTAMP=iso                # Options: iso, unix, relative
+LOG_COLOR=false                  # Enable/disable colored output
+
+# File logging
+LOG_TO_FILE=true                 # Enable file logging
+LOG_FILE_PATH=/var/log/deepwiki # Log directory path
+LOG_FILE_NAME=deepwiki.log       # Primary log file name
+LOG_MAX_SIZE=10M                 # Max size before rotation
+LOG_MAX_FILES=5                  # Number of rotated files to keep
+LOG_COMPRESS=true                # Compress rotated files
+
+# Performance logging
+LOG_SLOW_QUERIES=true            # Log slow database queries
+LOG_SLOW_THRESHOLD=1000          # Slow query threshold (ms)
+LOG_REQUEST_DETAILS=true         # Log HTTP request details
+LOG_RESPONSE_TIME=true           # Log API response times
+
+# Security logging
+LOG_AUTH_EVENTS=true             # Log authentication events
+LOG_SENSITIVE_DATA=false         # Never log sensitive data
+LOG_IP_ADDRESSES=true            # Log client IP addresses
+```
+
+### Docker Compose Configuration
+
+```yaml
+version: '3.8'
+
+services:
+  deepwiki:
+    image: deepwiki/deepwiki:latest
+    environment:
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - LOG_TO_FILE=true
+      - LOG_FILE_PATH=/app/logs
+    volumes:
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=deepwiki"
+```
+
+## Log Levels
+
+DeepWiki uses standard log levels with specific meanings:
+
+### Debug
+Detailed information for diagnosing problems:
+```javascript
+logger.debug('Processing search query', {
+  query: searchQuery,
+  filters: activeFilters,
+  userId: user.id,
+  timestamp: Date.now()
+});
+```
+
+### Info
+General informational messages:
+```javascript
+logger.info('User logged in successfully', {
+  userId: user.id,
+  method: 'oauth',
+  provider: 'github'
+});
+```
+
+### Warn
+Warning messages for potentially harmful situations:
+```javascript
+logger.warn('Rate limit approaching', {
+  userId: user.id,
+  currentRate: 95,
+  limit: 100,
+  window: '1h'
+});
+```
+
+### Error
+Error events that might still allow the application to continue:
+```javascript
+logger.error('Failed to send email', {
+  error: err.message,
+  stack: err.stack,
+  recipient: user.email,
+  template: 'welcome'
+});
+```
+
+## File Management
+
+### Log File Location
+
+Default log file structure:
+```
+/var/log/deepwiki/
+├── deepwiki.log          # Current log file
+├── deepwiki.1.log.gz     # Rotated and compressed
+├── deepwiki.2.log.gz
+├── error.log             # Error-only log
+├── access.log            # HTTP access log
+└── slow-query.log        # Database performance log
+```
+
+### Rotation Configuration
+
+Configure log rotation with environment variables or logrotate:
+
+```bash
+# /etc/logrotate.d/deepwiki
+/var/log/deepwiki/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 deepwiki deepwiki
+    sharedscripts
+    postrotate
+        docker exec deepwiki-app kill -USR2 1
+    endscript
+}
+```
+
+### Programmatic Rotation
+
+```javascript
+const winston = require('winston');
+require('winston-daily-rotate-file');
+
+const fileRotateTransport = new winston.transports.DailyRotateFile({
+  filename: 'deepwiki-%DATE%.log',
+  dirname: process.env.LOG_FILE_PATH,
+  datePattern: 'YYYY-MM-DD',
+  maxSize: '10m',
+  maxFiles: '14d',
+  auditFile: 'log-audit.json',
+  zippedArchive: true
+});
+```
+
+## Docker Logging
+
+### Container Logging Strategy
+
+```yaml
+# docker-compose.yml
+services:
+  deepwiki:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+        labels: "app=deepwiki,env=production"
+        env: "LOG_LEVEL,NODE_ENV"
+```
+
+### Centralized Logging with Fluentd
+
+```yaml
+# fluentd configuration
+version: '3.8'
+
+services:
+  deepwiki:
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: "localhost:24224"
+        tag: "deepwiki.{{.Name}}"
+        fluentd-async-connect: "true"
+        fluentd-retry-wait: "1s"
+        fluentd-max-retries: "30"
+
+  fluentd:
+    image: fluent/fluentd:latest
+    volumes:
+      - ./fluent.conf:/fluentd/etc/fluent.conf
+      - ./logs:/fluentd/log
+    ports:
+      - "24224:24224"
+```
+
+### Docker Logs Commands
+
+```bash
+# View logs
+docker logs deepwiki-app
+
+# Follow logs
+docker logs -f deepwiki-app
+
+# View last 100 lines
+docker logs --tail 100 deepwiki-app
+
+# Filter by timestamp
+docker logs --since 2024-01-01T00:00:00 deepwiki-app
+
+# Save logs to file
+docker logs deepwiki-app > deepwiki.log 2>&1
+```
+
+## Structured Logging
+
+### JSON Log Format
+
+Standard JSON log structure:
+```json
+{
+  "timestamp": "2024-01-15T10:30:45.123Z",
+  "level": "info",
+  "service": "deepwiki",
+  "environment": "production",
+  "version": "1.2.3",
+  "message": "API request completed",
+  "context": {
+    "requestId": "abc-123-def",
+    "userId": "user_456",
+    "method": "GET",
+    "path": "/api/v1/search",
+    "statusCode": 200,
+    "duration": 145,
+    "ip": "192.168.1.1",
+    "userAgent": "Mozilla/5.0..."
+  },
+  "metadata": {
+    "searchQuery": "kubernetes deployment",
+    "resultsCount": 25,
+    "cacheHit": true
+  }
+}
+```
+
+### Custom Log Formatter
+
+```javascript
+const logFormat = winston.format.combine(
+  winston.format.timestamp({
+    format: 'YYYY-MM-DD HH:mm:ss.SSS'
+  }),
+  winston.format.errors({ stack: true }),
+  winston.format.metadata({
+    fillWith: ['requestId', 'userId', 'sessionId']
+  }),
+  winston.format.json()
+);
+
+const logger = winston.createLogger({
+  format: logFormat,
+  defaultMeta: {
+    service: 'deepwiki',
+    version: process.env.APP_VERSION,
+    environment: process.env.NODE_ENV
+  }
+});
+```
+
+## Common Debug Patterns
+
+### Request Tracking
+
+```javascript
+// Middleware for request tracking
+app.use((req, res, next) => {
+  req.id = generateRequestId();
+  req.startTime = Date.now();
+  
+  logger.info('Request started', {
+    requestId: req.id,
+    method: req.method,
+    path: req.path,
+    query: req.query,
+    headers: sanitizeHeaders(req.headers)
+  });
+  
+  res.on('finish', () => {
+    logger.info('Request completed', {
+      requestId: req.id,
+      statusCode: res.statusCode,
+      duration: Date.now() - req.startTime
+    });
+  });
+  
+  next();
+});
+```
+
+### Database Query Logging
+
+```javascript
+// Log slow queries
+db.on('query', (query) => {
+  if (query.duration > process.env.LOG_SLOW_THRESHOLD) {
+    logger.warn('Slow query detected', {
+      query: query.sql,
+      bindings: query.bindings,
+      duration: query.duration,
+      rows: query.rowCount
+    });
+  }
+});
+```
+
+### Error Context Logging
+
+```javascript
+// Enhanced error logging
+function logError(error, context = {}) {
+  logger.error('Application error', {
+    message: error.message,
+    stack: error.stack,
+    code: error.code,
+    ...context,
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    memory: process.memoryUsage()
+  });
+}
+```
+
+## Performance Considerations
+
+### Asynchronous Logging
+
+```javascript
+// Use async transports to prevent blocking
+const asyncTransport = new winston.transports.File({
+  filename: 'app.log',
+  maxsize: 10485760, // 10MB
+  maxFiles: 5,
+  tailable: true,
+  zippedArchive: true,
+  // Async writing
+  flags: 'a',
+  encoding: 'utf8',
+  mode: 0o666
+});
+
+// Buffer logs for batch writing
+const batchTransport = new BatchTransport({
+  batchSize: 100,
+  flushInterval: 5000,
+  transport: asyncTransport
+});
+```
+
+### Sampling Strategies
+
+```javascript
+// Sample verbose logs in production
+function shouldLog(level, samplingRate = 0.1) {
+  if (level === 'error' || level === 'warn') return true;
+  if (process.env.NODE_ENV !== 'production') return true;
+  return Math.random() < samplingRate;
+}
+
+// Usage
+if (shouldLog('debug', 0.05)) {
+  logger.debug('Detailed trace information', heavyObject);
+}
+```
+
+### Performance Metrics
+
+```javascript
+// Log performance metrics periodically
+setInterval(() => {
+  const metrics = {
+    memory: process.memoryUsage(),
+    cpu: process.cpuUsage(),
+    uptime: process.uptime(),
+    activeRequests: getActiveRequestCount(),
+    dbConnections: getDbConnectionCount()
+  };
+  
+  logger.info('Performance metrics', metrics);
+}, 60000); // Every minute
+```
+
+## Security Best Practices
+
+### Data Sanitization
+
+```javascript
+// Sanitize sensitive data
+function sanitizeLogData(data) {
+  const sensitiveFields = [
+    'password', 'token', 'secret', 'apiKey',
+    'creditCard', 'ssn', 'email'
+  ];
+  
+  const sanitized = { ...data };
+  
+  sensitiveFields.forEach(field => {
+    if (sanitized[field]) {
+      sanitized[field] = '[REDACTED]';
+    }
+  });
+  
+  return sanitized;
+}
+
+// Usage
+logger.info('User registration', sanitizeLogData({
+  username: user.username,
+  email: user.email,
+  password: user.password
+}));
+```
+
+### Compliance Logging
+
+```javascript
+// GDPR-compliant logging
+const gdprLogger = {
+  logUserAction(userId, action, details) {
+    logger.info('User action', {
+      userId: hashUserId(userId), // Pseudonymize
+      action,
+      timestamp: Date.now(),
+      details: sanitizePersonalData(details)
+    });
+  },
+  
+  logDataAccess(accessor, resource, purpose) {
+    logger.info('Data access', {
+      accessor: hashUserId(accessor),
+      resource,
+      purpose,
+      timestamp: Date.now(),
+      authorized: true
+    });
+  }
+};
+```
+
+## Log Aggregation
+
+### ELK Stack Integration
+
+```yaml
+# Logstash configuration
+input {
+  file {
+    path => "/var/log/deepwiki/*.log"
+    start_position => "beginning"
+    codec => "json"
+    type => "deepwiki"
+  }
+}
+
+filter {
+  if [type] == "deepwiki" {
+    date {
+      match => [ "timestamp", "ISO8601" ]
+    }
+    
+    geoip {
+      source => "ip"
+      target => "geoip"
+    }
+    
+    mutate {
+      remove_field => [ "host", "@version" ]
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["elasticsearch:9200"]
+    index => "deepwiki-%{+YYYY.MM.dd}"
+  }
+}
+```
+
+### Prometheus Integration
+
+```javascript
+// Export metrics for Prometheus
+const promClient = require('prom-client');
+
+const httpDuration = new promClient.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status']
+});
+
+// Log and export metrics
+app.use((req, res, next) => {
+  const end = httpDuration.startTimer();
+  
+  res.on('finish', () => {
+    end({
+      method: req.method,
+      route: req.route?.path || 'unknown',
+      status: res.statusCode
+    });
+    
+    logger.info('Request metric', {
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      duration: end()
+    });
+  });
+  
+  next();
+});
+```
+
+## Monitoring & Alerting
+
+### Alert Rules
+
+```yaml
+# Prometheus alert rules
+groups:
+  - name: deepwiki_alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(log_entries_total{level="error"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors/sec"
+      
+      - alert: SlowQueries
+        expr: rate(slow_queries_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of slow queries"
+```
+
+### Health Check Logging
+
+```javascript
+// Health check endpoint with logging
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    checks: {}
+  };
+  
+  try {
+    // Database check
+    const dbStart = Date.now();
+    await db.raw('SELECT 1');
+    health.checks.database = {
+      status: 'healthy',
+      responseTime: Date.now() - dbStart
+    };
+    
+    // Redis check
+    const redisStart = Date.now();
+    await redis.ping();
+    health.checks.redis = {
+      status: 'healthy',
+      responseTime: Date.now() - redisStart
+    };
+    
+    logger.info('Health check passed', health);
+    res.json(health);
+  } catch (error) {
+    health.status = 'unhealthy';
+    health.error = error.message;
+    
+    logger.error('Health check failed', health);
+    res.status(503).json(health);
+  }
+});
+```
+
+### Dashboard Integration
+
+```javascript
+// Export logs to monitoring dashboard
+class LogExporter {
+  constructor(dashboardUrl, apiKey) {
+    this.dashboardUrl = dashboardUrl;
+    this.apiKey = apiKey;
+    this.buffer = [];
+    this.flushInterval = 5000;
+    
+    setInterval(() => this.flush(), this.flushInterval);
+  }
+  
+  export(logEntry) {
+    this.buffer.push({
+      ...logEntry,
+      hostname: os.hostname(),
+      pid: process.pid
+    });
+    
+    if (this.buffer.length >= 100) {
+      this.flush();
+    }
+  }
+  
+  async flush() {
+    if (this.buffer.length === 0) return;
+    
+    const logs = [...this.buffer];
+    this.buffer = [];
+    
+    try {
+      await fetch(`${this.dashboardUrl}/api/logs`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ logs })
+      });
+    } catch (error) {
+      logger.error('Failed to export logs', { error: error.message });
+      // Re-add logs to buffer for retry
+      this.buffer.unshift(...logs);
+    }
+  }
+}
+```
+
+## Best Practices
+
+1. **Use Structured Logging**: Always log in JSON format for easy parsing
+2. **Include Context**: Add request IDs, user IDs, and session IDs to all logs
+3. **Avoid Blocking**: Use asynchronous logging in production
+4. **Sanitize Data**: Never log passwords, tokens, or sensitive personal data
+5. **Set Appropriate Levels**: Use debug in development, info in production
+6. **Monitor Log Volume**: Set up alerts for unusual log volumes
+7. **Implement Retention**: Define log retention policies based on compliance needs
+8. **Use Correlation IDs**: Track requests across services with unique IDs
+9. **Log Metrics**: Include performance data in logs for analysis
+10. **Test Log Output**: Verify logs work correctly in all environments
+
+## Troubleshooting
+
+### Common Issues
+
+```bash
+# Check if logs are being written
+tail -f /var/log/deepwiki/deepwiki.log
+
+# Verify log permissions
+ls -la /var/log/deepwiki/
+
+# Check disk space
+df -h /var/log
+
+# Monitor log growth
+watch -n 1 'du -sh /var/log/deepwiki/*'
+
+# Search for errors
+grep -i error /var/log/deepwiki/deepwiki.log | tail -20
+
+# Check log configuration
+docker exec deepwiki-app env | grep LOG_
+```
+
+### Debug Mode
+
+Enable verbose logging for troubleshooting:
+```bash
+# Temporarily enable debug logging
+docker exec deepwiki-app npm run debug
+
+# Or set environment variable
+docker exec -e LOG_LEVEL=debug deepwiki-app node app.js
+```

@@ -1,0 +1,907 @@
+# Basic Usage
+
+This guide provides practical examples of using DeepWiki's core features. All examples are designed to be runnable and progressively introduce more complex functionality.
+
+## Table of Contents
+
+1. [Simple Wiki Generation](#simple-wiki-generation)
+2. [Using the Ask Feature](#using-the-ask-feature)
+3. [Using DeepResearch Feature](#using-deepresearch-feature)
+4. [Working with Public Repositories](#working-with-public-repositories)
+5. [Basic API Calls with curl](#basic-api-calls-with-curl)
+6. [Python Client Example](#python-client-example)
+7. [JavaScript/Node.js Example](#javascriptnodejs-example)
+8. [Common Use Cases and Workflows](#common-use-cases-and-workflows)
+
+## Simple Wiki Generation
+
+The most basic use of DeepWiki is generating documentation from your codebase.
+
+### Example 1: Generate a basic wiki
+
+```bash
+# Using the CLI
+deepwiki generate --input ./my-project --output ./wiki
+
+# With specific file types
+deepwiki generate --input ./my-project --output ./wiki --include "*.py,*.js"
+
+# Exclude certain directories
+deepwiki generate --input ./my-project --output ./wiki --exclude "node_modules,dist"
+```
+
+### Example 2: Generate with custom configuration
+
+```yaml
+# deepwiki.config.yaml
+input:
+  path: ./my-project
+  include:
+    - "src/**/*.py"
+    - "lib/**/*.js"
+  exclude:
+    - "**/test/**"
+    - "**/__pycache__/**"
+
+output:
+  path: ./documentation
+  format: markdown
+  
+generation:
+  include_source_links: true
+  max_file_size: 1MB
+  language_support:
+    - python
+    - javascript
+```
+
+```bash
+# Use the configuration file
+deepwiki generate --config deepwiki.config.yaml
+```
+
+## Using the Ask Feature
+
+The Ask feature allows you to query your codebase using natural language.
+
+### Example 3: Basic questions about your code
+
+```bash
+# Ask about function usage
+deepwiki ask "How does the authentication system work?"
+
+# Ask about specific components
+deepwiki ask "What does the UserService class do?"
+
+# Ask about dependencies
+deepwiki ask "What external libraries does this project use?"
+```
+
+### Example 4: Advanced Ask queries with context
+
+```python
+from deepwiki import DeepWikiClient
+
+client = DeepWikiClient(api_key="your-api-key")
+
+# Ask with specific context
+response = client.ask(
+    question="How can I add a new payment method?",
+    context={
+        "files": ["src/payments/*.py", "src/models/payment.py"],
+        "focus": "implementation details"
+    }
+)
+
+print(response.answer)
+print(f"Confidence: {response.confidence}")
+print(f"Sources: {response.sources}")
+```
+
+## Using DeepResearch Feature
+
+DeepResearch performs in-depth analysis of your codebase to answer complex questions.
+
+### Example 5: Basic research query
+
+```bash
+# Research architectural patterns
+deepwiki research "What architectural patterns are used in this project?"
+
+# Research performance optimizations
+deepwiki research "What are the potential performance bottlenecks?"
+
+# Research security concerns
+deepwiki research "Are there any security vulnerabilities in the authentication flow?"
+```
+
+### Example 6: Comprehensive research with multiple aspects
+
+```python
+from deepwiki import DeepWikiClient
+
+client = DeepWikiClient(api_key="your-api-key")
+
+# Perform comprehensive research
+research_config = {
+    "topic": "Database optimization opportunities",
+    "aspects": [
+        "query performance",
+        "indexing strategies",
+        "connection pooling",
+        "caching mechanisms"
+    ],
+    "depth": "comprehensive",
+    "include_recommendations": True
+}
+
+result = client.deep_research(research_config)
+
+# Process results
+for finding in result.findings:
+    print(f"Finding: {finding.title}")
+    print(f"Impact: {finding.impact}")
+    print(f"Recommendation: {finding.recommendation}")
+    print("---")
+```
+
+## Working with Public Repositories
+
+DeepWiki can analyze public repositories directly from GitHub.
+
+### Example 7: Analyze a public GitHub repository
+
+```bash
+# Analyze a public repository
+deepwiki analyze --repo https://github.com/username/repo-name
+
+# Generate documentation for a specific branch
+deepwiki generate --repo https://github.com/username/repo-name --branch develop
+
+# Analyze with specific focus
+deepwiki analyze --repo https://github.com/username/repo-name --focus "api-design"
+```
+
+### Example 8: Batch analysis of multiple repositories
+
+```python
+from deepwiki import DeepWikiClient
+
+client = DeepWikiClient(api_key="your-api-key")
+
+# Analyze multiple related repositories
+repos = [
+    "https://github.com/org/frontend",
+    "https://github.com/org/backend",
+    "https://github.com/org/shared-lib"
+]
+
+for repo in repos:
+    analysis = client.analyze_repository(repo)
+    print(f"Repository: {repo}")
+    print(f"Tech Stack: {', '.join(analysis.tech_stack)}")
+    print(f"Complexity Score: {analysis.complexity_score}")
+    print(f"Documentation Coverage: {analysis.doc_coverage}%")
+    print("---")
+```
+
+## Basic API Calls with curl
+
+### Example 9: Generate wiki via API
+
+```bash
+# Generate wiki for a repository
+curl -X POST https://api.deepwiki.com/v1/generate \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repository": "https://github.com/username/repo",
+    "output_format": "markdown",
+    "include_diagrams": true
+  }'
+
+# Check generation status
+curl -X GET https://api.deepwiki.com/v1/jobs/JOB_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### Example 10: Ask questions via API
+
+```bash
+# Ask a question about your codebase
+curl -X POST https://api.deepwiki.com/v1/ask \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "How does the caching system work?",
+    "repository": "https://github.com/username/repo",
+    "context_depth": "detailed"
+  }'
+```
+
+### Example 11: Deep research via API
+
+```bash
+# Initiate deep research
+curl -X POST https://api.deepwiki.com/v1/research \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "topic": "Security vulnerabilities in API endpoints",
+    "repository": "https://github.com/username/repo",
+    "analysis_type": "security",
+    "include_fixes": true
+  }'
+```
+
+## Python Client Example
+
+### Example 12: Complete Python workflow
+
+```python
+from deepwiki import DeepWikiClient
+import json
+
+# Initialize client
+client = DeepWikiClient(
+    api_key="your-api-key",
+    base_url="https://api.deepwiki.com/v1"  # Optional: for self-hosted
+)
+
+# 1. Generate documentation
+def generate_documentation(repo_path):
+    """Generate comprehensive documentation for a repository."""
+    
+    job = client.generate_wiki(
+        input_path=repo_path,
+        output_format="markdown",
+        options={
+            "include_api_docs": True,
+            "include_examples": True,
+            "generate_diagrams": True,
+            "languages": ["python", "javascript"]
+        }
+    )
+    
+    # Wait for completion
+    result = job.wait_for_completion(timeout=300)
+    
+    if result.status == "completed":
+        print(f"Documentation generated at: {result.output_path}")
+        return result.output_path
+    else:
+        print(f"Generation failed: {result.error}")
+        return None
+
+# 2. Interactive Q&A session
+def interactive_qa_session(repo_path):
+    """Run an interactive Q&A session."""
+    
+    print("DeepWiki Q&A Session (type 'exit' to quit)")
+    
+    while True:
+        question = input("\nYour question: ")
+        
+        if question.lower() == 'exit':
+            break
+            
+        response = client.ask(
+            question=question,
+            repository=repo_path,
+            options={
+                "include_code_snippets": True,
+                "max_sources": 5
+            }
+        )
+        
+        print(f"\nAnswer: {response.answer}")
+        
+        if response.code_snippets:
+            print("\nRelevant code:")
+            for snippet in response.code_snippets:
+                print(f"File: {snippet.file}")
+                print(f"```{snippet.language}")
+                print(snippet.code)
+                print("```")
+
+# 3. Automated code analysis
+def analyze_code_quality(repo_path):
+    """Perform automated code quality analysis."""
+    
+    analysis = client.analyze(
+        repository=repo_path,
+        analysis_types=[
+            "code_quality",
+            "security",
+            "performance",
+            "maintainability"
+        ]
+    )
+    
+    # Generate report
+    report = {
+        "summary": analysis.summary,
+        "scores": {
+            "quality": analysis.quality_score,
+            "security": analysis.security_score,
+            "performance": analysis.performance_score,
+            "maintainability": analysis.maintainability_score
+        },
+        "issues": [
+            {
+                "type": issue.type,
+                "severity": issue.severity,
+                "file": issue.file,
+                "line": issue.line,
+                "message": issue.message,
+                "suggestion": issue.suggestion
+            }
+            for issue in analysis.issues
+        ],
+        "recommendations": analysis.recommendations
+    }
+    
+    with open("analysis_report.json", "w") as f:
+        json.dump(report, f, indent=2)
+    
+    return report
+
+# 4. Research complex topics
+def research_topic(repo_path, topic):
+    """Conduct deep research on a specific topic."""
+    
+    research = client.deep_research(
+        topic=topic,
+        repository=repo_path,
+        research_config={
+            "depth": "comprehensive",
+            "include_external_resources": True,
+            "compare_with_best_practices": True,
+            "generate_recommendations": True
+        }
+    )
+    
+    # Process findings
+    for finding in research.findings:
+        print(f"\n## {finding.title}")
+        print(f"Importance: {finding.importance}/10")
+        print(f"\nDescription: {finding.description}")
+        
+        if finding.code_examples:
+            print("\nCode Examples:")
+            for example in finding.code_examples:
+                print(f"```{example.language}")
+                print(example.code)
+                print("```")
+        
+        if finding.recommendations:
+            print("\nRecommendations:")
+            for rec in finding.recommendations:
+                print(f"- {rec}")
+
+# Main workflow
+if __name__ == "__main__":
+    repo_path = "./my-project"
+    
+    # Generate documentation
+    doc_path = generate_documentation(repo_path)
+    
+    # Analyze code quality
+    report = analyze_code_quality(repo_path)
+    print(f"Overall quality score: {report['scores']['quality']}/100")
+    
+    # Research specific topic
+    research_topic(repo_path, "API performance optimization strategies")
+    
+    # Start Q&A session
+    interactive_qa_session(repo_path)
+```
+
+## JavaScript/Node.js Example
+
+### Example 13: Complete Node.js workflow
+
+```javascript
+const { DeepWikiClient } = require('deepwiki-js');
+
+// Initialize client
+const client = new DeepWikiClient({
+    apiKey: process.env.DEEPWIKI_API_KEY,
+    baseUrl: 'https://api.deepwiki.com/v1' // Optional: for self-hosted
+});
+
+// 1. Generate documentation with progress tracking
+async function generateDocumentation(repoPath) {
+    console.log('Starting documentation generation...');
+    
+    const job = await client.generateWiki({
+        inputPath: repoPath,
+        outputFormat: 'markdown',
+        options: {
+            includeApiDocs: true,
+            includeExamples: true,
+            generateDiagrams: true,
+            languages: ['javascript', 'typescript']
+        }
+    });
+    
+    // Track progress
+    job.on('progress', (progress) => {
+        console.log(`Progress: ${progress.percentage}% - ${progress.status}`);
+    });
+    
+    try {
+        const result = await job.waitForCompletion();
+        console.log(`Documentation generated at: ${result.outputPath}`);
+        return result;
+    } catch (error) {
+        console.error('Generation failed:', error);
+        throw error;
+    }
+}
+
+// 2. Real-time Q&A with streaming
+async function askWithStreaming(question, repoPath) {
+    const stream = await client.askStream({
+        question,
+        repository: repoPath,
+        options: {
+            includeCodeSnippets: true,
+            streamResponse: true
+        }
+    });
+    
+    console.log('\nAnswer: ');
+    
+    for await (const chunk of stream) {
+        process.stdout.write(chunk.text);
+        
+        // Handle code snippets
+        if (chunk.codeSnippet) {
+            console.log(`\n\nCode from ${chunk.codeSnippet.file}:`);
+            console.log('```' + chunk.codeSnippet.language);
+            console.log(chunk.codeSnippet.code);
+            console.log('```\n');
+        }
+    }
+}
+
+// 3. Analyze repository with webhooks
+async function analyzeWithWebhooks(repoUrl, webhookUrl) {
+    const analysis = await client.analyze({
+        repository: repoUrl,
+        analysisTypes: ['all'],
+        webhook: {
+            url: webhookUrl,
+            events: ['started', 'progress', 'completed', 'failed']
+        }
+    });
+    
+    console.log(`Analysis started with ID: ${analysis.id}`);
+    
+    // Poll for results
+    let result;
+    while (!result || result.status === 'processing') {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        result = await client.getAnalysis(analysis.id);
+        console.log(`Status: ${result.status}`);
+    }
+    
+    return result;
+}
+
+// 4. Batch operations
+async function batchAnalyzeRepositories(repositories) {
+    const batch = client.createBatch();
+    
+    // Add operations to batch
+    for (const repo of repositories) {
+        batch.addOperation('analyze', {
+            repository: repo,
+            analysisTypes: ['code_quality', 'security']
+        });
+    }
+    
+    // Execute batch
+    const results = await batch.execute();
+    
+    // Process results
+    results.forEach((result, index) => {
+        console.log(`\nRepository: ${repositories[index]}`);
+        if (result.success) {
+            console.log(`Quality Score: ${result.data.qualityScore}`);
+            console.log(`Security Score: ${result.data.securityScore}`);
+        } else {
+            console.log(`Failed: ${result.error}`);
+        }
+    });
+}
+
+// 5. Research with caching
+class CachedResearchClient {
+    constructor(client) {
+        this.client = client;
+        this.cache = new Map();
+    }
+    
+    async research(topic, repoPath, useCache = true) {
+        const cacheKey = `${topic}:${repoPath}`;
+        
+        if (useCache && this.cache.has(cacheKey)) {
+            console.log('Returning cached result');
+            return this.cache.get(cacheKey);
+        }
+        
+        const result = await this.client.deepResearch({
+            topic,
+            repository: repoPath,
+            config: {
+                depth: 'comprehensive',
+                includeExternalResources: true
+            }
+        });
+        
+        this.cache.set(cacheKey, result);
+        return result;
+    }
+}
+
+// 6. Express.js integration
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+// Wiki generation endpoint
+app.post('/api/generate-wiki', async (req, res) => {
+    const { repository, format = 'markdown' } = req.body;
+    
+    try {
+        const job = await client.generateWiki({
+            repository,
+            outputFormat: format
+        });
+        
+        res.json({
+            jobId: job.id,
+            status: 'processing',
+            checkUrl: `/api/jobs/${job.id}`
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Ask endpoint
+app.post('/api/ask', async (req, res) => {
+    const { question, repository } = req.body;
+    
+    try {
+        const response = await client.ask({
+            question,
+            repository
+        });
+        
+        res.json({
+            answer: response.answer,
+            confidence: response.confidence,
+            sources: response.sources
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Job status endpoint
+app.get('/api/jobs/:jobId', async (req, res) => {
+    try {
+        const job = await client.getJob(req.params.jobId);
+        res.json(job);
+    } catch (error) {
+        res.status(404).json({ error: 'Job not found' });
+    }
+});
+
+// Main execution
+async function main() {
+    const repoPath = './my-project';
+    
+    try {
+        // Generate documentation
+        await generateDocumentation(repoPath);
+        
+        // Ask questions with streaming
+        await askWithStreaming(
+            'What are the main components of this application?',
+            repoPath
+        );
+        
+        // Batch analyze multiple repos
+        await batchAnalyzeRepositories([
+            'https://github.com/org/repo1',
+            'https://github.com/org/repo2',
+            'https://github.com/org/repo3'
+        ]);
+        
+        // Start API server
+        app.listen(3000, () => {
+            console.log('DeepWiki API server running on port 3000');
+        });
+        
+    } catch (error) {
+        console.error('Error:', error);
+        process.exit(1);
+    }
+}
+
+// Run if called directly
+if (require.main === module) {
+    main();
+}
+
+module.exports = {
+    generateDocumentation,
+    askWithStreaming,
+    analyzeWithWebhooks,
+    batchAnalyzeRepositories,
+    CachedResearchClient
+};
+```
+
+## Common Use Cases and Workflows
+
+### Example 14: Onboarding new developers
+
+```bash
+#!/bin/bash
+# onboard-developer.sh
+
+# Generate comprehensive documentation
+deepwiki generate \
+  --input . \
+  --output ./docs/wiki \
+  --include-getting-started \
+  --include-architecture
+
+# Create developer guide
+deepwiki research "What should a new developer know about this codebase?" \
+  --output ./docs/developer-guide.md
+
+# Generate API reference
+deepwiki generate-api-docs \
+  --input ./src/api \
+  --output ./docs/api-reference
+
+# Create interactive tutorial
+deepwiki create-tutorial \
+  --topics "setup,first-feature,testing" \
+  --output ./docs/tutorial
+```
+
+### Example 15: Continuous documentation workflow
+
+```yaml
+# .github/workflows/deepwiki.yml
+name: DeepWiki Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup DeepWiki
+      uses: deepwiki/setup-action@v1
+      with:
+        api-key: ${{ secrets.DEEPWIKI_API_KEY }}
+    
+    - name: Generate Documentation
+      run: |
+        deepwiki generate \
+          --input . \
+          --output ./docs \
+          --config .deepwiki.yml
+    
+    - name: Analyze Changes
+      if: github.event_name == 'pull_request'
+      run: |
+        deepwiki analyze-pr \
+          --base ${{ github.base_ref }} \
+          --head ${{ github.head_ref }} \
+          --comment
+    
+    - name: Update Wiki
+      if: github.ref == 'refs/heads/main'
+      run: |
+        deepwiki publish \
+          --source ./docs \
+          --destination wiki
+```
+
+### Example 16: API documentation generation
+
+```python
+from deepwiki import DeepWikiClient
+from pathlib import Path
+
+client = DeepWikiClient(api_key="your-api-key")
+
+def generate_api_documentation(api_dir):
+    """Generate comprehensive API documentation."""
+    
+    # Analyze API endpoints
+    api_analysis = client.analyze_api({
+        "directory": api_dir,
+        "frameworks": ["express", "fastapi", "django"],
+        "include_examples": True
+    })
+    
+    # Generate OpenAPI spec
+    openapi_spec = client.generate_openapi({
+        "analysis": api_analysis,
+        "version": "3.0.0",
+        "include_schemas": True
+    })
+    
+    # Create interactive documentation
+    interactive_docs = client.generate_interactive_docs({
+        "openapi_spec": openapi_spec,
+        "theme": "modern",
+        "include_playground": True
+    })
+    
+    # Save outputs
+    Path("./docs/api/openapi.yaml").write_text(openapi_spec)
+    Path("./docs/api/interactive").mkdir(parents=True, exist_ok=True)
+    
+    return {
+        "openapi": "./docs/api/openapi.yaml",
+        "interactive": "./docs/api/interactive/index.html"
+    }
+```
+
+### Example 17: Code migration assistant
+
+```javascript
+const { DeepWikiClient } = require('deepwiki-js');
+
+async function migrationAssistant(sourcePath, targetFramework) {
+    const client = new DeepWikiClient({
+        apiKey: process.env.DEEPWIKI_API_KEY
+    });
+    
+    // Analyze current codebase
+    const analysis = await client.analyze({
+        repository: sourcePath,
+        focus: ['architecture', 'dependencies', 'patterns']
+    });
+    
+    // Research migration path
+    const migrationPlan = await client.deepResearch({
+        topic: `Migrating from ${analysis.mainFramework} to ${targetFramework}`,
+        context: analysis,
+        includeStepByStep: true
+    });
+    
+    // Generate migration checklist
+    const checklist = await client.generateChecklist({
+        plan: migrationPlan,
+        includeTimeEstimates: true,
+        includeDependencies: true
+    });
+    
+    // Create migration documentation
+    const docs = await client.generateMigrationDocs({
+        currentState: analysis,
+        targetState: targetFramework,
+        plan: migrationPlan,
+        checklist: checklist
+    });
+    
+    return {
+        analysis,
+        plan: migrationPlan,
+        checklist,
+        documentation: docs
+    };
+}
+
+// Usage
+migrationAssistant('./legacy-app', 'react')
+    .then(result => {
+        console.log('Migration plan generated successfully');
+        console.log(`Total steps: ${result.checklist.steps.length}`);
+        console.log(`Estimated time: ${result.checklist.totalHours} hours`);
+    });
+```
+
+### Example 18: Security audit workflow
+
+```python
+import asyncio
+from deepwiki import DeepWikiClient
+
+async def security_audit(repo_path):
+    """Perform comprehensive security audit."""
+    
+    client = DeepWikiClient(api_key="your-api-key")
+    
+    # 1. Initial security scan
+    scan_result = await client.security_scan({
+        "repository": repo_path,
+        "scan_types": [
+            "dependency_vulnerabilities",
+            "code_vulnerabilities",
+            "configuration_issues",
+            "secret_detection"
+        ]
+    })
+    
+    # 2. Deep research on vulnerabilities
+    vulnerabilities = []
+    for vuln in scan_result.vulnerabilities:
+        research = await client.deep_research({
+            "topic": f"Fix for {vuln.type}: {vuln.description}",
+            "context": {
+                "file": vuln.file,
+                "line": vuln.line,
+                "severity": vuln.severity
+            }
+        })
+        
+        vulnerabilities.append({
+            "vulnerability": vuln,
+            "research": research,
+            "fix_recommendation": research.recommendations[0]
+        })
+    
+    # 3. Generate security report
+    report = await client.generate_security_report({
+        "scan_result": scan_result,
+        "vulnerability_research": vulnerabilities,
+        "include_remediation": True,
+        "format": "html"
+    })
+    
+    # 4. Create fix PRs for critical issues
+    for vuln in vulnerabilities:
+        if vuln['vulnerability'].severity == 'critical':
+            await client.create_fix_pr({
+                "vulnerability": vuln['vulnerability'],
+                "fix": vuln['fix_recommendation'],
+                "branch_name": f"fix-{vuln['vulnerability'].id}",
+                "pr_title": f"Security: Fix {vuln['vulnerability'].type}",
+                "pr_body": report.get_section(vuln['vulnerability'].id)
+            })
+    
+    return report
+
+# Run security audit
+if __name__ == "__main__":
+    report = asyncio.run(security_audit("./my-app"))
+    print(f"Security audit complete. Report saved to: {report.path}")
+```
+
+## Best Practices
+
+1. **Start Simple**: Begin with basic wiki generation before moving to advanced features
+2. **Use Configuration Files**: Store settings in `deepwiki.config.yaml` for consistency
+3. **Leverage Caching**: Cache results for frequently asked questions or repeated analyses
+4. **Batch Operations**: Group multiple operations together for better performance
+5. **Monitor Progress**: Use progress callbacks for long-running operations
+6. **Handle Errors Gracefully**: Implement proper error handling and retries
+7. **Secure API Keys**: Never hardcode API keys; use environment variables
+8. **Regular Updates**: Keep documentation in sync with code changes using CI/CD
+
+## Next Steps
+
+- Explore [Advanced Features](./advanced-features.mdx) for more complex scenarios
+- Check out [API Reference](../api-reference/index.mdx) for detailed API documentation
+- Join our [Community](https://deepwiki.com/community) for support and updates

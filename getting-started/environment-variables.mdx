@@ -1,0 +1,570 @@
+---
+title: "Environment Variables"
+description: "Complete guide to configuring DeepWiki-Open environment variables for all supported AI providers and features"
+---
+
+DeepWiki-Open uses environment variables to configure AI providers, server settings, authentication, and advanced features. This guide covers all available environment variables and their usage.
+
+## Required Environment Variables
+
+At minimum, you need API keys for at least one AI provider:
+
+<CodeGroup>
+```bash Minimal Setup
+# Choose ONE of these AI providers
+GOOGLE_API_KEY=your_google_api_key_here
+# OR
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+```bash Complete .env File
+# AI Provider API Keys (choose at least one)
+GOOGLE_API_KEY=your_google_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# Azure OpenAI (Enterprise)
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_VERSION=2024-02-15-preview
+
+# AWS Bedrock
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=us-east-1
+
+# Local/Self-Hosted Models
+OLLAMA_HOST=http://localhost:11434
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Server Configuration
+PORT=8001
+SERVER_BASE_URL=http://localhost:8001
+
+# Authorization & Security
+DEEPWIKI_AUTH_MODE=false
+DEEPWIKI_AUTH_CODE=your_secret_code_here
+
+# Logging & Debugging
+LOG_LEVEL=INFO
+LOG_FILE_PATH=./api/logs/application.log
+
+# Advanced Configuration
+DEEPWIKI_CONFIG_DIR=./api/config
+REDIS_URL=redis://localhost:6379
+```
+</CodeGroup>
+
+## AI Provider Configuration
+
+### Google Gemini
+
+<ParamField type="string" required>
+  GOOGLE_API_KEY
+</ParamField>
+Google AI Studio API key for Gemini models.
+
+**How to get:**
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Click "Create API Key"
+3. Copy the generated key
+
+**Supported models:**
+- `gemini-2.0-flash` (default, recommended)
+- `gemini-1.5-flash`
+- `gemini-1.0-pro`
+
+<Tip>
+Google Gemini offers generous free tier limits and excellent performance for documentation generation.
+</Tip>
+
+### OpenAI
+
+<ParamField type="string" required>
+  OPENAI_API_KEY
+</ParamField>
+OpenAI API key for GPT models.
+
+<ParamField type="string">
+  OPENAI_BASE_URL
+  <div>Default: `https://api.openai.com/v1`</div>
+</ParamField>
+Custom OpenAI API endpoint (for OpenAI-compatible services).
+
+**How to get:**
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Create new secret key
+3. Copy the key (starts with `sk-`)
+
+**Supported models:**
+- `gpt-4o` (default)
+- `gpt-4.1`
+- `o1`
+- `o3`
+- `o4-mini`
+
+<Warning>
+OpenAI requires a paid account. Free tier users cannot access the API.
+</Warning>
+
+### OpenRouter
+
+<ParamField type="string">
+  OPENROUTER_API_KEY
+</ParamField>
+OpenRouter API key for access to multiple model providers.
+
+**How to get:**
+1. Sign up at [OpenRouter](https://openrouter.ai/)
+2. Go to Keys section
+3. Create new API key
+
+**Available models:**
+- `openai/gpt-4o`
+- `anthropic/claude-3.5-sonnet`
+- `deepseek/deepseek-r1`
+- `google/gemini-pro`
+- And 100+ more models
+
+<Info>
+OpenRouter provides access to multiple AI providers through a single API, perfect for comparing models.
+</Info>
+
+### Azure OpenAI
+
+<ParamField type="string">
+  AZURE_OPENAI_API_KEY
+</ParamField>
+Azure OpenAI service API key.
+
+<ParamField type="string">
+  AZURE_OPENAI_ENDPOINT
+</ParamField>
+Your Azure OpenAI resource endpoint URL.
+
+<ParamField type="string">
+  AZURE_OPENAI_VERSION
+</ParamField>
+API version (e.g., `2024-02-15-preview`).
+
+**How to get:**
+1. Create Azure OpenAI resource in [Azure Portal](https://portal.azure.com/)
+2. Deploy a model (GPT-4, GPT-3.5-turbo, etc.)
+3. Get endpoint and API key from resource overview
+4. Note the API version from the deployment
+
+**Example configuration:**
+```env
+AZURE_OPENAI_API_KEY=abc123def456ghi789
+AZURE_OPENAI_ENDPOINT=https://my-resource.openai.azure.com
+AZURE_OPENAI_VERSION=2024-02-15-preview
+```
+
+### AWS Bedrock
+
+<ParamField type="string">
+  AWS_ACCESS_KEY_ID
+</ParamField>
+AWS access key for Bedrock access.
+
+<ParamField type="string">
+  AWS_SECRET_ACCESS_KEY  
+</ParamField>
+AWS secret access key.
+
+<ParamField type="string">
+  AWS_REGION
+  <div>Default: `us-east-1`</div>
+</ParamField>
+AWS region where Bedrock models are available.
+
+**Supported models:**
+- `anthropic.claude-3-sonnet-20240229-v1:0`
+- `anthropic.claude-3-haiku-20240307-v1:0`
+- `anthropic.claude-3-opus-20240229-v1:0`
+- `amazon.titan-text-express-v1`
+
+### Ollama (Local Models)
+
+<ParamField type="string">
+  OLLAMA_HOST
+  <div>Default: `http://localhost:11434`</div>
+</ParamField>
+Ollama server URL for local AI models.
+
+**Setup Ollama:**
+
+<Tabs>
+<Tab title="macOS">
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Start service
+ollama serve
+
+# Pull a model
+ollama pull llama3:8b
+```
+</Tab>
+
+<Tab title="Linux">
+```bash
+# Install Ollama  
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Start as service
+sudo systemctl start ollama
+sudo systemctl enable ollama
+
+# Pull a model
+ollama pull qwen3:8b
+```
+</Tab>
+
+<Tab title="Docker">
+```bash
+# Run Ollama in container
+docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+
+# Pull a model
+docker exec -it ollama ollama pull llama3:8b
+```
+</Tab>
+</Tabs>
+
+**Supported models:**
+- `qwen3:1.7b` (lightweight)
+- `llama3:8b` (balanced)
+- `qwen3:8b` (high context)
+
+### DashScope (Alibaba)
+
+<ParamField type="string">
+  DASHSCOPE_API_KEY
+</ParamField>
+Alibaba DashScope API key for Qwen models.
+
+**How to get:**
+1. Sign up at [DashScope](https://dashscope.aliyun.com/)
+2. Create API key in console
+3. Add key to environment
+
+**Supported models:**
+- `qwen-plus`
+- `qwen-turbo`
+- `deepseek-r1`
+
+## Server Configuration
+
+<ParamField type="integer">
+  PORT
+  <div>Default: `8001`</div>
+</ParamField>
+Port for the FastAPI backend server.
+
+<ParamField type="string">
+  SERVER_BASE_URL
+  <div>Default: `http://localhost:8001`</div>
+</ParamField>
+Base URL for API server (used by frontend).
+
+<ParamField type="string">
+  NODE_ENV
+  <div>Default: `production`</div>
+</ParamField>
+Environment mode (`development`, `production`, `test`).
+
+**Example server configuration:**
+```env
+PORT=8002
+SERVER_BASE_URL=https://api.deepwiki.example.com
+NODE_ENV=production
+```
+
+## Security & Authentication
+
+### Authorization Mode
+
+<ParamField type="boolean">
+  DEEPWIKI_AUTH_MODE
+  <div>Default: `false`</div>
+</ParamField>
+Enable authorization requirement for wiki generation.
+
+<ParamField type="string">
+  DEEPWIKI_AUTH_CODE
+</ParamField>
+Secret code required when authorization mode is enabled.
+
+**Usage:**
+```env
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=my-secret-code-123
+```
+
+When enabled, users must enter the auth code to generate wikis.
+
+<Warning>
+Authorization mode provides basic frontend protection but doesn't secure direct API access.
+</Warning>
+
+## Logging & Debugging
+
+<ParamField type="string">
+  LOG_LEVEL
+  <div>Default: `INFO`</div>
+</ParamField>
+Logging verbosity level.
+
+**Options:** `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+
+<ParamField type="string">
+  LOG_FILE_PATH
+  <div>Default: `./api/logs/application.log`</div>
+</ParamField>
+Path for log file output.
+
+**Example logging configuration:**
+```env
+LOG_LEVEL=DEBUG
+LOG_FILE_PATH=./logs/deepwiki-debug.log
+```
+
+<Info>
+In production, use `INFO` or `WARNING` level to reduce log volume.
+</Info>
+
+## Advanced Configuration
+
+<ParamField type="string">
+  DEEPWIKI_CONFIG_DIR
+  <div>Default: `./api/config`</div>
+</ParamField>
+Directory containing configuration JSON files.
+
+<ParamField type="string">
+  REDIS_URL
+</ParamField>
+Redis connection URL for caching (optional).
+
+**Example:**
+```env
+DEEPWIKI_CONFIG_DIR=/custom/config/path
+REDIS_URL=redis://localhost:6379/0
+```
+
+## Environment File Templates
+
+### Development
+
+<CodeGroup>
+```env .env.development
+# Development Environment
+NODE_ENV=development
+LOG_LEVEL=DEBUG
+LOG_FILE_PATH=./api/logs/development.log
+
+# Server Config
+PORT=8001
+SERVER_BASE_URL=http://localhost:8001
+
+# API Keys
+GOOGLE_API_KEY=your_development_google_key
+OPENAI_API_KEY=your_development_openai_key
+
+# Local Ollama
+OLLAMA_HOST=http://localhost:11434
+
+# No authentication for dev
+DEEPWIKI_AUTH_MODE=false
+```
+</CodeGroup>
+
+### Production
+
+<CodeGroup>
+```env .env.production
+# Production Environment  
+NODE_ENV=production
+LOG_LEVEL=INFO
+LOG_FILE_PATH=/var/log/deepwiki/application.log
+
+# Server Config
+PORT=8001
+SERVER_BASE_URL=https://api.yourdomain.com
+
+# Production API Keys
+GOOGLE_API_KEY=your_production_google_key
+OPENAI_API_KEY=your_production_openai_key
+AZURE_OPENAI_API_KEY=your_azure_key
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
+AZURE_OPENAI_VERSION=2024-02-15-preview
+
+# Enable authentication
+DEEPWIKI_AUTH_MODE=true
+DEEPWIKI_AUTH_CODE=your_secure_production_code
+
+# Redis caching
+REDIS_URL=redis://redis-server:6379/0
+```
+</CodeGroup>
+
+### Docker
+
+<CodeGroup>
+```env .env.docker
+# Docker Environment
+NODE_ENV=production
+LOG_LEVEL=INFO
+
+# Container networking
+PORT=8001
+SERVER_BASE_URL=http://deepwiki-api:8001
+
+# API Keys
+GOOGLE_API_KEY=your_google_key
+OPENAI_API_KEY=your_openai_key
+
+# External Ollama
+OLLAMA_HOST=http://ollama-server:11434
+
+# Persistent data
+LOG_FILE_PATH=/app/logs/application.log
+DEEPWIKI_CONFIG_DIR=/app/config
+```
+</CodeGroup>
+
+## Validation & Testing
+
+<Steps>
+<Step title="Validate Environment">
+```bash
+# Check environment variables are loaded
+python -c "
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# Check API keys
+providers = {
+    'Google': os.getenv('GOOGLE_API_KEY'),
+    'OpenAI': os.getenv('OPENAI_API_KEY'),
+    'OpenRouter': os.getenv('OPENROUTER_API_KEY'),
+    'Azure': os.getenv('AZURE_OPENAI_API_KEY'),
+}
+
+for name, key in providers.items():
+    status = '✓ Configured' if key else '✗ Missing'
+    print(f'{name}: {status}')
+"
+```
+</Step>
+
+<Step title="Test API Connections">
+```bash
+# Test backend startup
+python -m api.main
+
+# Check for successful startup messages
+# Look for: "Starting Streaming API on port 8001"
+# No API key warnings for your configured providers
+```
+</Step>
+
+<Step title="Verify Frontend Connection">
+```bash
+# Start frontend
+npm run dev
+
+# Test API connection at http://localhost:3000
+# Model selection should show your configured providers
+```
+</Step>
+</Steps>
+
+## Security Best Practices
+
+<AccordionGroup>
+<Accordion title="API Key Security">
+- Never commit `.env` files to version control
+- Use different API keys for development and production
+- Regularly rotate API keys
+- Monitor API usage for unexpected activity
+- Use environment-specific keys when possible
+</Accordion>
+
+<Accordion title="Production Security">
+```bash
+# Secure file permissions
+chmod 600 .env
+
+# Use secrets management in production
+# - AWS Secrets Manager
+# - Azure Key Vault  
+# - Kubernetes secrets
+# - Docker secrets
+```
+</Accordion>
+
+<Accordion title="Network Security">
+- Use HTTPS in production
+- Configure proper CORS settings
+- Use private networks for internal components
+- Enable authorization mode for public deployments
+</Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Environment Variables Not Loading">
+**Symptoms:** API key errors, default values used
+
+**Solutions:**
+1. Verify `.env` file is in project root
+2. Check file permissions (readable by application)
+3. Ensure no syntax errors in `.env` file
+4. Restart application after changes
+</Accordion>
+
+<Accordion title="API Key Validation Errors">
+**Symptoms:** "Invalid API key" errors
+
+**Solutions:**
+1. Test API keys with provider's documentation
+2. Check for extra spaces or characters
+3. Verify key has correct permissions/scopes
+4. Confirm key hasn't expired or been revoked
+</Accordion>
+
+<Accordion title="Port Conflicts">
+**Symptoms:** "Port already in use" errors
+
+**Solutions:**
+1. Change PORT environment variable
+2. Kill existing processes on the port
+3. Use Docker with port mapping
+4. Configure reverse proxy
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Model Provider Setup" icon="brain" href="/getting-started/model-providers">
+  Configure specific AI model providers and their settings
+</Card>
+
+<Card title="Production Deployment" icon="cloud" href="/guides/production-setup">
+  Deploy DeepWiki with production-ready configuration
+</Card>
+
+<Card title="Configuration Files" icon="gear" href="/reference/configuration-files">
+  Learn about JSON configuration files for advanced customization
+</Card>
+
+<Card title="Security Guide" icon="shield" href="/reference/security">
+  Implement security best practices for production deployments
+</Card>
+</CardGroup>

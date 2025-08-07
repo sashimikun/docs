@@ -1,0 +1,145 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "DeepWiki-Open",
+  "logo": {
+    "dark": "https://asyncfunc.ai/favicon.png",
+    "light": "https://asyncfunc.ai/favicon.png"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#6c1fd8",
+    "light": "#d4a9f9",
+    "dark": "#4c0ea8",
+    "anchors": {
+      "from": "#6c1fd8",
+      "to": "#d86c1f"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://discord.com/invite/VQMBGR8u5v"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "GitHub",
+    "url": "https://github.com/AsyncFuncAI/deepwiki-open"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api"
+    },
+    {
+      "name": "Examples",
+      "url": "examples"
+    },
+    {
+      "name": "Guides",
+      "url": "guides"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Demo",
+      "icon": "play",
+      "url": "https://youtu.be/zGANs8US8B4"
+    },
+    {
+      "name": "Discord",
+      "icon": "discord",
+      "url": "https://discord.com/invite/VQMBGR8u5v"
+    },
+    {
+      "name": "Buy Me Coffee",
+      "icon": "dollar-sign",
+      "url": "https://buymeacoffee.com/sheing"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "getting-started/introduction",
+        "getting-started/quick-start",
+        "getting-started/installation",
+        "getting-started/first-wiki"
+      ]
+    },
+    {
+      "group": "Configuration",
+      "pages": [
+        "getting-started/environment-variables",
+        "getting-started/model-providers",
+        "getting-started/authorization-mode"
+      ]
+    },
+    {
+      "group": "Core Features",
+      "pages": [
+        "guides/wiki-generation",
+        "guides/private-repositories",
+        "guides/ask-feature",
+        "guides/deep-research",
+        "guides/mermaid-diagrams",
+        "guides/internationalization"
+      ]
+    },
+    {
+      "group": "Deployment",
+      "pages": [
+        "guides/docker-deployment",
+        "guides/manual-setup",
+        "guides/production-setup"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api/overview",
+        "api/authentication",
+        "api/wiki-endpoints",
+        "api/chat-endpoints",
+        "api/model-endpoints",
+        "api/websocket-api"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": [
+        "examples/basic-usage",
+        "examples/custom-models",
+        "examples/enterprise-setup",
+        "examples/troubleshooting-scenarios"
+      ]
+    },
+    {
+      "group": "Advanced",
+      "pages": [
+        "reference/architecture",
+        "reference/configuration-files",
+        "reference/logging",
+        "reference/security",
+        "reference/performance"
+      ]
+    },
+    {
+      "group": "Support",
+      "pages": [
+        "reference/troubleshooting",
+        "reference/faq",
+        "reference/contributing"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/AsyncFuncAI/deepwiki-open",
+    "twitter": "https://x.com/sashimikun_void",
+    "discord": "https://discord.com/invite/VQMBGR8u5v"
+  },
+  "analytics": {
+    "ga4": {
+      "measurementId": "G-XXXXXXXXXX"
+    }
+  }
+}

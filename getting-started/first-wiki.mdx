@@ -1,0 +1,397 @@
+---
+title: "Generate Your First Wiki"
+description: "Step-by-step guide to creating your first repository wiki with DeepWiki-Open"
+---
+
+Now that DeepWiki-Open is running, let's generate your first repository wiki! This guide walks you through the complete process from entering a repository URL to exploring the generated documentation.
+
+## Quick Start
+
+<Steps>
+<Step title="Open DeepWiki Interface">
+Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
+
+You should see the main DeepWiki interface with:
+- Repository URL input field
+- Model provider selection
+- Generate Wiki button
+
+<Check>
+The interface loads without errors and shows all input fields.
+</Check>
+</Step>
+
+<Step title="Choose a Test Repository">
+For your first wiki, start with a small, well-structured repository:
+
+<Tabs>
+<Tab title="Beginner-Friendly Repos">
+```
+https://github.com/octocat/Hello-World
+https://github.com/microsoft/TypeScript-Node-Starter
+https://github.com/expressjs/express
+```
+</Tab>
+
+<Tab title="Medium Complexity">
+```
+https://github.com/microsoft/autogen
+https://github.com/openai/openai-python
+https://github.com/vercel/next.js
+```
+</Tab>
+
+<Tab title="Your Own Repository">
+Enter your own repository URL:
+- GitHub: `https://github.com/username/repo-name`
+- GitLab: `https://gitlab.com/username/repo-name`
+- BitBucket: `https://bitbucket.org/username/repo-name`
+</Tab>
+</Tabs>
+
+<Tip>
+Start with repositories under 100 files for faster initial generation and testing.
+</Tip>
+</Step>
+
+<Step title="Configure AI Model">
+Select your AI model provider and specific model:
+
+<Accordion title="Google Gemini (Recommended for Beginners)">
+- **Provider**: Google
+- **Model**: `gemini-2.0-flash` (default)
+- **Why**: Fast, reliable, generous free tier
+- **Best for**: General documentation, good balance of speed and quality
+</Accordion>
+
+<Accordion title="OpenAI GPT Models">
+- **Provider**: OpenAI  
+- **Model**: `gpt-4o` (default)
+- **Why**: High-quality, detailed documentation
+- **Best for**: Complex codebases requiring detailed analysis
+</Accordion>
+
+<Accordion title="OpenRouter (Multiple Models)">
+- **Provider**: OpenRouter
+- **Model**: `openai/gpt-4o` or `anthropic/claude-3.5-sonnet`
+- **Why**: Access to multiple providers through one API
+- **Best for**: Experimenting with different models
+</Accordion>
+
+<Warning>
+Ensure you have valid API keys configured for your chosen provider.
+</Warning>
+</Step>
+
+<Step title="Generate the Wiki">
+Click the **"Generate Wiki"** button and watch the progress:
+
+1. **Repository Analysis**: DeepWiki clones and analyzes the repository structure
+2. **Code Processing**: Creates embeddings for intelligent code understanding
+3. **AI Generation**: Generates documentation using your selected AI model
+4. **Diagram Creation**: Creates Mermaid diagrams for visualization
+5. **Wiki Assembly**: Organizes everything into a structured wiki
+
+<Info>
+Generation typically takes 30 seconds to 2 minutes for small repos, 5-10 minutes for larger ones.
+</Info>
+</Step>
+</Steps>
+
+## Understanding the Generated Wiki
+
+Once generation completes, you'll see your interactive wiki with several key sections:
+
+### Wiki Structure
+
+<Tabs>
+<Tab title="Overview Section">
+**What you'll see:**
+- Repository summary and purpose
+- Key features and functionality
+- Architecture overview
+- Main technologies used
+
+**Example content:**
+- Project description
+- Installation instructions
+- Usage examples
+- Contributing guidelines
+</Tab>
+
+<Tab title="Code Analysis">
+**What you'll see:**
+- File structure breakdown
+- Component relationships
+- Data flow analysis
+- Key functions and classes
+
+**Includes:**
+- Code snippets with explanations
+- Function parameter details
+- Class inheritance diagrams
+- Module dependencies
+</Tab>
+
+<Tab title="Visual Diagrams">
+**Mermaid diagrams showing:**
+- System architecture
+- Data flow
+- Component relationships
+- Process workflows
+- Database schemas (if applicable)
+
+**Interactive features:**
+- Zoom and pan diagrams
+- Clickable nodes
+- Responsive design
+</Tab>
+</Tabs>
+
+### Navigation Features
+
+<CardGroup cols={2}>
+<Card title="Wiki Tree View" icon="sitemap">
+  Hierarchical navigation showing all wiki pages and sections
+</Card>
+
+<Card title="Search Functionality" icon="magnifying-glass">
+  Full-text search across all generated documentation
+</Card>
+
+<Card title="Cross-References" icon="link">
+  Links between related pages and code sections
+</Card>
+
+<Card title="File References" icon="file-code">
+  Direct links to source files and line numbers
+</Card>
+</CardGroup>
+
+## Using the Ask Feature
+
+The Ask feature lets you chat with your repository using RAG (Retrieval Augmented Generation):
+
+<Steps>
+<Step title="Access Ask Interface">
+Look for the "Ask" or chat interface in your generated wiki.
+</Step>
+
+<Step title="Ask Questions">
+Try these example questions:
+
+<CodeGroup>
+```text General Questions
+What is the main purpose of this repository?
+How do I install and run this project?
+What are the key features?
+```
+
+```text Technical Questions  
+How does the authentication system work?
+What databases does this project use?
+Explain the API endpoints
+```
+
+```text Code-Specific Questions
+Show me the main entry point
+How is error handling implemented?
+What testing framework is used?
+```
+</CodeGroup>
+</Step>
+
+<Step title="Review Responses">
+The AI will provide answers based on your actual repository code, including:
+- Direct code references
+- File locations
+- Relevant context
+- Example usage
+</Step>
+</Steps>
+
+## Deep Research Mode
+
+For complex analysis, try the Deep Research feature:
+
+<Steps>
+<Step title="Enable Deep Research">
+Toggle the "Deep Research" switch in the Ask interface.
+</Step>
+
+<Step title="Ask Complex Questions">
+Deep Research is perfect for questions like:
+- "Analyze the security implementation across the entire codebase"
+- "How is performance optimized in this application?"
+- "Explain the complete data flow from user input to database"
+</Step>
+
+<Step title="Review Multi-Turn Analysis">
+Deep Research conducts multiple investigation rounds:
+
+1. **Initial Analysis**: Basic research and findings
+2. **Deep Dive**: Detailed investigation of specific aspects  
+3. **Cross-References**: Analysis of relationships and dependencies
+4. **Final Synthesis**: Comprehensive conclusion with recommendations
+</Step>
+</Steps>
+
+## Customizing Your Wiki
+
+### Model Selection
+
+<AccordionGroup>
+<Accordion title="Switching Models Mid-Generation">
+You can change models and regenerate sections:
+
+1. Go to model configuration
+2. Select a different provider/model
+3. Regenerate specific sections
+4. Compare results from different models
+</Accordion>
+
+<Accordion title="Custom Model Parameters">
+For advanced users, you can adjust:
+- Temperature (creativity vs. consistency)
+- Top-p (response diversity) 
+- Max tokens (response length)
+- Custom model names (for compatible providers)
+</Accordion>
+</AccordionGroup>
+
+### Private Repository Access
+
+<Steps>
+<Step title="Generate Personal Access Token">
+<Tabs>
+<Tab title="GitHub">
+1. Go to GitHub Settings → Developer settings → Personal access tokens
+2. Generate new token (classic)
+3. Select scopes: `repo` (for private repos)
+4. Copy the generated token
+</Tab>
+
+<Tab title="GitLab">
+1. Go to GitLab User Settings → Access Tokens
+2. Create token with `read_repository` scope
+3. Copy the generated token
+</Tab>
+
+<Tab title="BitBucket">
+1. Go to BitBucket Account Settings → App passwords
+2. Create password with `Repositories: Read` permission
+3. Copy the generated password
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Add Token to DeepWiki">
+1. Click "+ Add access tokens" in the DeepWiki interface
+2. Paste your personal access token
+3. The token is stored locally and used for repository access
+</Step>
+
+<Step title="Generate Private Repo Wiki">
+Now you can generate wikis for your private repositories using the same process.
+
+<Warning>
+Tokens are stored locally in your browser. Never share your access tokens.
+</Warning>
+</Step>
+</Steps>
+
+## Troubleshooting Your First Wiki
+
+<AccordionGroup>
+<Accordion title="Generation Failed">
+**Common causes:**
+- Invalid repository URL
+- Private repository without access token
+- API key issues
+- Repository too large
+
+**Solutions:**
+1. Verify the repository URL is accessible
+2. Check API key configuration
+3. Try a smaller repository first
+4. Check the browser developer console for errors
+</Accordion>
+
+<Accordion title="Poor Quality Results">
+**Possible issues:**
+- Wrong model selected
+- Repository has unusual structure
+- Limited code documentation
+
+**Improvements:**
+1. Try a different AI model
+2. Use OpenAI GPT-4 for complex repositories
+3. Enable Deep Research mode
+4. Ask specific questions to get better answers
+</Accordion>
+
+<Accordion title="Slow Generation">
+**Normal for:**
+- Large repositories (1000+ files)
+- Complex codebases
+- Detailed analysis requests
+
+**Speed tips:**
+1. Start with smaller repositories
+2. Use faster models like `gemini-2.0-flash`
+3. Avoid Deep Research for initial testing
+4. Check your internet connection
+</Accordion>
+</AccordionGroup>
+
+## Example Walkthrough
+
+Let's generate a wiki for the Express.js repository:
+
+<Steps>
+<Step title="Setup">
+- Repository: `https://github.com/expressjs/express`
+- Model: Google Gemini 2.0 Flash
+- No authentication needed (public repo)
+</Step>
+
+<Step title="Expected Results">
+The generated wiki should include:
+- Express.js framework overview
+- Middleware architecture explanation
+- Router and route handling
+- Request/response cycle diagrams
+- API reference for core methods
+</Step>
+
+<Step title="Testing Ask Feature">
+Try asking:
+- "How does Express.js middleware work?"
+- "Show me how to create a simple server"
+- "Explain the routing system"
+
+You should get detailed answers with code examples from the actual Express.js codebase.
+</Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+<Card title="Explore Advanced Features" icon="rocket" href="/guides/wiki-generation">
+  Learn about advanced wiki generation options and customization
+</Card>
+
+<Card title="Set Up Multiple Models" icon="brain" href="/getting-started/model-providers">
+  Configure multiple AI providers to compare results
+</Card>
+
+<Card title="Production Deployment" icon="cloud" href="/guides/production-setup">
+  Deploy DeepWiki for team or production use
+</Card>
+
+<Card title="API Integration" icon="code" href="/api/overview">
+  Integrate DeepWiki into your development workflow
+</Card>
+</CardGroup>
+
+Congratulations! You've successfully generated your first repository wiki with DeepWiki-Open. The AI-powered analysis and documentation generation should give you a comprehensive understanding of any codebase in minutes rather than hours of manual exploration.
