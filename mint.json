@@ -28,7 +28,7 @@
   "tabs": [
     {
       "name": "API Reference",
-      "url": "api"
+      "url": "endpoints"
     },
     {
       "name": "Examples",
@@ -96,12 +96,12 @@
     {
       "group": "API Documentation",
       "pages": [
-        "api/overview",
-        "api/authentication",
-        "api/wiki-endpoints",
-        "api/chat-endpoints",
-        "api/model-endpoints",
-        "api/websocket-api"
+        "endpoints/overview",
+        "endpoints/authentication",
+        "endpoints/wiki-endpoints",
+        "endpoints/chat-endpoints",
+        "endpoints/model-endpoints",
+        "endpoints/websocket-api"
       ]
     },
     {
