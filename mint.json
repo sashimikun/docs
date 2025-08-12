@@ -61,6 +61,7 @@
       "group": "Get Started",
       "pages": [
         "getting-started/introduction",
+        "getting-started/whats-new",
         "getting-started/quick-start",
         "getting-started/installation",
         "getting-started/first-wiki"

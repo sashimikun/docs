@@ -25,7 +25,7 @@ project-root/
 
 ## 1. generator.json Structure
 
-The main configuration file controlling documentation generation.
+The main configuration file controlling documentation generation and AI model selection.
 
 ### Complete Schema
 
@@ -35,6 +35,32 @@ The main configuration file controlling documentation generation.
   "version": "2.0",
   "name": "project-name",
   "description": "Project description",
+  "ai": {
+    "openai": {
+      "default_model": "gpt-5",
+      "supportsCustomModel": true,
+      "models": {
+        "gpt-5": {
+          "temperature": 1.0
+        },
+        "gpt-4o": {
+          "temperature": 0.7,
+          "top_p": 0.8
+        },
+        "gpt-4o-mini": {
+          "temperature": 0.8
+        }
+      }
+    },
+    "google": {
+      "default_model": "gemini-2.0-flash-thinking-exp-1219",
+      "models": {
+        "gemini-2.0-flash-thinking-exp-1219": {},
+        "gemini-1.5-flash": {},
+        "gemini-1.5-pro": {}
+      }
+    }
+  },
   "output": {
     "directory": "./docs",
     "format": "mdx",
@@ -141,6 +167,53 @@ The main configuration file controlling documentation generation.
   }
 }
 ```
+
+### AI Model Configuration (Updated)
+
+As of commit 05693d5, DeepWiki now supports GPT-5 as the default OpenAI model. Configure AI providers in `generator.json`:
+
+```json
+{
+  "ai": {
+    "openai": {
+      "default_model": "gpt-5",  // Now the default model
+      "supportsCustomModel": true,
+      "models": {
+        "gpt-5": {
+          "temperature": 1.0,
+          "description": "Latest generation model with advanced reasoning"
+        },
+        "gpt-4o": {
+          "temperature": 0.7,
+          "top_p": 0.8,
+          "description": "Previous default, still available as fallback"
+        }
+      }
+    },
+    "google": {
+      "default_model": "gemini-2.0-flash-thinking-exp-1219",
+      "models": {
+        "gemini-2.0-flash-thinking-exp-1219": {
+          "description": "Latest Gemini model with enhanced capabilities"
+        }
+      }
+    },
+    "azure": {
+      "default_model": "gpt-5",
+      "deployment_name": "gpt-5-deployment",
+      "api_version": "2025-01-01-preview"
+    }
+  }
+}
+```
+
+<Note>
+**Important GPT-5 Requirements:**
+- Ensure your OpenAI account has GPT-5 API access
+- GPT-5 may have regional availability limitations
+- Pricing may differ from GPT-4o models
+- Consider using GPT-4o as a fallback when GPT-5 is unavailable
+</Note>
 
 ## 2. embedder.json Configuration
 
