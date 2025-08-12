@@ -581,6 +581,109 @@ graph TB
    - Embedding reuse
    - Response streaming
 
+## Centralized Prompt Management
+
+As of commit 36777d3, DeepWiki implements a centralized prompt management system for better maintainability and consistency across the application.
+
+### Prompt Architecture
+
+<div className="mermaid">
+```mermaid
+graph TB
+    subgraph "Prompt Management System"
+        PromptModule[prompts.py]
+        
+        subgraph "System Prompts"
+            RAGSystem[RAG_SYSTEM_PROMPT]
+            ResearchFirst[DEEP_RESEARCH_FIRST_ITERATION_PROMPT]
+            ResearchInter[DEEP_RESEARCH_INTERMEDIATE_ITERATION_PROMPT]
+            ResearchFinal[DEEP_RESEARCH_FINAL_ITERATION_PROMPT]
+            SimpleChat[SIMPLE_CHAT_SYSTEM_PROMPT]
+        end
+        
+        subgraph "Templates"
+            RAGTemplate[RAG_TEMPLATE]
+        end
+        
+        subgraph "Consumers"
+            RAGModule[rag.py]
+            SimpleChatModule[simple_chat.py]
+        end
+    end
+    
+    PromptModule --> RAGSystem
+    PromptModule --> ResearchFirst
+    PromptModule --> ResearchInter
+    PromptModule --> ResearchFinal
+    PromptModule --> SimpleChat
+    PromptModule --> RAGTemplate
+    
+    RAGModule --> PromptModule
+    SimpleChatModule --> PromptModule
+```
+</div>
+
+### Prompt Types and Usage
+
+#### 1. RAG System Prompt
+- **Purpose**: Core prompt for RAG-based question answering
+- **Features**:
+  - Language detection and response matching
+  - Markdown formatting guidelines
+  - Context integration with past conversations
+  - Code syntax highlighting support
+
+#### 2. Deep Research Prompts
+Three-stage research prompt system for comprehensive analysis:
+
+- **First Iteration**: Research planning and initial investigation
+- **Intermediate Iterations**: Building on previous findings
+- **Final Iteration**: Synthesis and comprehensive conclusion
+
+#### 3. Simple Chat System Prompt
+- **Purpose**: Direct, concise responses without preambles
+- **Features**:
+  - No markdown headers in responses
+  - Direct answers without filler
+  - Optimized for quick interactions
+
+### Benefits of Centralized Management
+
+1. **Consistency**: All prompts follow the same standards and formatting
+2. **Maintainability**: Single source of truth for all prompt templates
+3. **Versioning**: Easy to track prompt changes and iterations
+4. **Testability**: Prompts can be unit tested and validated
+5. **Flexibility**: Easy to add new prompts or modify existing ones
+
+### Implementation Example
+
+```python
+# api/prompts.py
+"""Module containing all prompts used in the DeepWiki project."""
+
+# Centralized prompt definitions
+RAG_SYSTEM_PROMPT = r"""
+You are a code assistant which answers user questions on a Github Repo.
+You will receive user query, relevant context, and past conversation history.
+
+LANGUAGE DETECTION AND RESPONSE:
+- Detect the language of the user's query
+- Respond in the SAME language as the user's query
+...
+"""
+
+# Usage in rag.py
+from api.prompts import RAG_SYSTEM_PROMPT, RAG_TEMPLATE
+
+def create_rag_prompt(query, contexts, history):
+    return RAG_TEMPLATE.format(
+        system_prompt=RAG_SYSTEM_PROMPT,
+        input_str=query,
+        contexts=contexts,
+        conversation_history=history
+    )
+```
+
 ## Technology Stack
 
 ### Frontend Technologies

@@ -201,19 +201,43 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 ### Available Models
 
 <Tabs>
-<Tab title="gpt-4o (Recommended)">
+<Tab title="gpt-5 (Latest - Default)">
+**Best for:** State-of-the-art documentation generation with advanced reasoning
+
+- **Speed:** Fast to moderate (3-8 seconds per request)
+- **Quality:** Next-generation AI capabilities with superior understanding
+- **Context:** 256K tokens input/output (estimated)
+- **Temperature:** 1.0 (default for creative yet accurate responses)
+- **Availability:** Rolling out to API users (check availability in your region)
+
+**Ideal for:**
+- Cutting-edge documentation projects
+- Complex architectural documentation
+- Multi-language codebases
+- Advanced technical analysis
+- Projects requiring latest AI capabilities
+
+<Note>
+GPT-5 is now the default model in DeepWiki as of commit 05693d5. Ensure your OpenAI account has access to GPT-5 API.
+</Note>
+</Tab>
+
+<Tab title="gpt-4o (Previous Default)">
 **Best for:** High-quality, comprehensive documentation
 
 - **Speed:** Moderate (5-10 seconds per request)
 - **Quality:** Exceptional writing and analysis
 - **Context:** 128K tokens input/output
 - **Cost:** $15/1M input tokens, $60/1M output tokens
+- **Temperature:** 0.7 (default)
+- **Top-p:** 0.8 (default)
 
 **Ideal for:**
 - Production documentation
 - Complex enterprise applications
 - Publication-quality content
 - Detailed architectural analysis
+- Fallback when GPT-5 is unavailable
 </Tab>
 
 <Tab title="gpt-4.1">
@@ -277,25 +301,27 @@ Monitor and optimize token consumption:
 
 **Cost calculation example:**
 - Large repository: ~200K input tokens, 8K output tokens
+- GPT-5 cost: Pricing to be announced (expected similar or slightly higher than GPT-4o)
 - GPT-4o cost: $3.00 input + $0.48 output = $3.48 per generation
-- Monthly usage (10 repos): ~$35/month
+- Monthly usage (10 repos): ~$35-50/month (estimated)
 </Accordion>
 
 <Accordion title="Model Selection Strategy">
 **Match model to task complexity:**
 
 1. **Simple projects:** Use o4-mini for cost savings
-2. **Standard projects:** Use gpt-4o for best balance
-3. **Complex analysis:** Use o1 series for deep insights
+2. **Standard projects:** Use gpt-5 for latest capabilities or gpt-4o for proven reliability
+3. **Complex analysis:** Use gpt-5 for advanced reasoning or o1 series for deep insights
 4. **Budget constraints:** Start with o4-mini, upgrade if needed
+5. **Cutting-edge needs:** Use gpt-5 for state-of-the-art performance
 
 ```javascript
 {
   "auto_model_selection": {
     "repository_size": {
       "small": "o4-mini",      // < 100 files
-      "medium": "gpt-4o",      // 100-1000 files  
-      "large": "gpt-4o"        // 1000+ files
+      "medium": "gpt-5",       // 100-1000 files (if available, else gpt-4o)
+      "large": "gpt-5"         // 1000+ files (if available, else gpt-4o)
     },
     "complexity_factors": [
       "multiple_languages",

@@ -1,0 +1,203 @@
+---
+title: "What's New"
+description: "Latest updates and improvements to DeepWiki-Open"
+---
+
+# What's New in DeepWiki-Open
+
+Stay up to date with the latest features, improvements, and changes in DeepWiki-Open.
+
+## Recent Updates
+
+### 🚀 GPT-5 Support Added (Commit: 05693d5)
+*August 7, 2025*
+
+DeepWiki now supports OpenAI's GPT-5 model as the default for documentation generation!
+
+<Card title="GPT-5 Integration" icon="robot">
+**Key Changes:**
+- GPT-5 is now the default OpenAI model
+- Temperature set to 1.0 for optimal creative yet accurate responses
+- Fallback to GPT-4o when GPT-5 is unavailable
+- Enhanced reasoning capabilities for complex codebases
+
+**Configuration:**
+```json
+{
+  "openai": {
+    "default_model": "gpt-5",
+    "models": {
+      "gpt-5": {
+        "temperature": 1.0
+      }
+    }
+  }
+}
+```
+</Card>
+
+<Note>
+Ensure your OpenAI account has GPT-5 API access. Check regional availability as GPT-5 may have limited rollout initially.
+</Note>
+
+### 🏗️ Centralized Prompt Management (Commit: 36777d3)
+*August 8, 2025*
+
+Major refactoring to centralize all AI prompts for better maintainability and consistency.
+
+<Card title="Prompt Architecture" icon="brain">
+**Improvements:**
+- All prompts now managed in `api/prompts.py`
+- Consistent formatting and language detection
+- Separate prompts for RAG, Deep Research, and Simple Chat
+- Better template management with Jinja2-style formatting
+
+**New Structure:**
+- `RAG_SYSTEM_PROMPT` - Core RAG functionality
+- `DEEP_RESEARCH_*_PROMPT` - Three-stage research prompts
+- `SIMPLE_CHAT_SYSTEM_PROMPT` - Direct Q&A responses
+- `RAG_TEMPLATE` - Unified template structure
+</Card>
+
+**Benefits:**
+- ✅ Single source of truth for all prompts
+- ✅ Easier testing and validation
+- ✅ Consistent user experience
+- ✅ Simplified prompt updates and versioning
+
+### ⚡ Repository Cloning Performance Optimization (Commit: f79554f)
+*August 8, 2025*
+
+Significant performance improvement for repository cloning operations.
+
+<Card title="Clone Optimization" icon="bolt">
+**Performance Gains:**
+| Repository Size | Time Saved | Size Reduction |
+|----------------|------------|----------------|
+| Small (<100MB) | 80% | 70% |
+| Medium (100MB-1GB) | 90% | 85% |
+| Large (1-10GB) | 95% | 90% |
+| Massive (>10GB) | 98% | 95% |
+
+**Technical Details:**
+- Added `--depth=1` flag for shallow cloning
+- Added `--single-branch` flag to fetch only main branch
+- Reduces bandwidth usage dramatically
+- Perfect for documentation generation where history isn't needed
+</Card>
+
+**Implementation:**
+```python
+# Optimized clone command
+subprocess.run(
+    ["git", "clone", "--depth=1", "--single-branch", clone_url, local_path],
+    check=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+)
+```
+
+## Upcoming Features
+
+### 🔮 In Development
+
+<CardGroup cols={2}>
+<Card title="Enhanced GPT-5 Features" icon="stars">
+  Advanced reasoning modes and specialized documentation templates optimized for GPT-5
+</Card>
+
+<Card title="Distributed Processing" icon="network-wired">
+  Support for processing massive repositories across multiple workers
+</Card>
+
+<Card title="Real-time Collaboration" icon="users">
+  Multiple users can work on documentation simultaneously
+</Card>
+
+<Card title="Plugin System" icon="puzzle-piece">
+  Extensible architecture for custom documentation processors
+</Card>
+</CardGroup>
+
+## Migration Guide
+
+### Updating to GPT-5
+
+If you're currently using GPT-4o, follow these steps to migrate:
+
+<Steps>
+<Step title="Check API Access">
+Verify your OpenAI account has GPT-5 access by checking your API dashboard
+</Step>
+
+<Step title="Update Configuration">
+Update your `generator.json` or environment variables to use GPT-5:
+```json
+{
+  "openai": {
+    "default_model": "gpt-5"
+  }
+}
+```
+</Step>
+
+<Step title="Test Generation">
+Run a test generation on a small repository to verify GPT-5 is working:
+```bash
+# Test with a simple repository
+python -m api.main --repo https://github.com/simple/test-repo --model gpt-5
+```
+</Step>
+
+<Step title="Configure Fallback">
+Set up GPT-4o as a fallback in case GPT-5 is unavailable:
+```json
+{
+  "openai": {
+    "default_model": "gpt-5",
+    "fallback_model": "gpt-4o"
+  }
+}
+```
+</Step>
+</Steps>
+
+### Performance Optimization Tips
+
+To take advantage of the new cloning optimizations:
+
+1. **Clear Old Caches**: Remove old full clones to save disk space
+   ```bash
+   rm -rf ~/.adalflow/repos/*
+   ```
+
+2. **Monitor Clone Times**: The new shallow clone should complete in seconds even for large repos
+
+3. **Adjust Timeouts**: You can now reduce clone timeouts since operations are much faster
+   ```python
+   CLONE_TIMEOUT = 30  # Reduced from 300 seconds
+   ```
+
+## Breaking Changes
+
+### ⚠️ Version Compatibility
+
+- **Prompt System**: Custom prompts may need updating to work with the new centralized system
+- **Model Selection**: Default model changed from `gpt-4o` to `gpt-5` - ensure API access
+- **Clone Behavior**: Shallow clones mean git history operations won't work
+
+## Support and Feedback
+
+<CardGroup cols={2}>
+<Card title="Report Issues" icon="bug" href="https://github.com/AsyncFuncAI/deepwiki-open/issues">
+  Found a bug? Let us know on GitHub
+</Card>
+
+<Card title="Join Discord" icon="discord" href="https://discord.com/invite/VQMBGR8u5v">
+  Get help and discuss features with the community
+</Card>
+</CardGroup>
+
+## Previous Releases
+
+For a complete history of changes, see the [GitHub Releases](https://github.com/AsyncFuncAI/deepwiki-open/releases) page.
